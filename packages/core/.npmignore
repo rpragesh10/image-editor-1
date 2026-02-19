@@ -1,0 +1,31 @@
+# Source
+src/
+scripts/
+
+# Config
+tsconfig*.json
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Dev files
+*.map
+*.tsbuildinfo
+.gitignore
+.git/
+.vscode/
+.idea/
+
+# Tests
+__tests__/
+*.test.*
+*.spec.*
+coverage/
+
+# Demo
+demo/
+
+# Misc
+node_modules/
+.DS_Store
+Thumbs.db

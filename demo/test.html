@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>rp-image-editor — Quick Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #e8ecf1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 20px;
+    }
+
+    h1 {
+      font-size: 26px;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+
+    .card {
+      background: #fff;
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      text-align: center;
+      max-width: 560px;
+      width: 100%;
+    }
+
+    .file-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 36px;
+      background: #4a90d9;
+      color: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: background 0.2s, transform 0.1s;
+      margin-bottom: 16px;
+    }
+    .file-label:hover { background: #3a7bc8; }
+    .file-label:active { transform: scale(0.97); }
+    input[type="file"] { display: none; }
+
+    .themes {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .theme-chip {
+      padding: 7px 16px;
+      border: 2px solid #ddd;
+      background: #fff;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .theme-chip:hover { border-color: #aaa; }
+    .theme-chip.active { border-color: #4a90d9; background: #e8f0fe; color: #4a90d9; }
+
+    .output-section {
+      display: none;
+      margin-top: 24px;
+      text-align: left;
+    }
+    .output-section.visible { display: block; }
+
+    .output-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    .output-image {
+      width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 2px solid #eee;
+      background: #fafafa;
+    }
+
+    .output-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .meta-item {
+      background: #f5f7fa;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .meta-label { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .meta-value { font-weight: 600; color: #333; margin-top: 2px; }
+
+    .console-hint {
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: #1a1a2e;
+      color: #66bb6a;
+      border-radius: 8px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    .instruction {
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #614700;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📷 rp-image-editor Test</h1>
+  <p class="subtitle">Select an image → Edit → Click Apply → Check console for output</p>
+
+  <div class="card">
+
+    <div class="instruction">
+      <strong>Instructions:</strong><br>
+      1. Pick a theme below (optional)<br>
+      2. Click "Choose Image" and select any image (PNG, JPEG, HEIC)<br>
+      3. The editor modal will open — try crop, zoom, rotate, draw, text, eraser<br>
+      4. Click <strong>Apply</strong> — the result will be logged to console & shown below<br>
+      5. Open <strong>DevTools → Console</strong> (Cmd+Option+J) to see the full output object
+    </div>
+
+    <div class="themes">
+      <button class="theme-chip active" data-theme="dark">🌙 Dark</button>
+      <button class="theme-chip" data-theme="light">☀️ Light</button>
+      <button class="theme-chip" data-theme="blue">💙 Blue</button>
+      <button class="theme-chip" data-theme="green">💚 Green</button>
+    </div>
+
+    <label class="file-label" for="imgInput">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      Choose Image
+    </label>
+    <input type="file" id="imgInput" accept=".png,.jpeg,.jpg,.heic,.heif" />
+
+    <div class="output-section" id="outputSection">
+      <div class="output-title">✅ Edited Result</div>
+      <img class="output-image" id="outputImg" />
+      <div class="output-meta" id="outputMeta"></div>
+      <div class="console-hint" id="consoleHint"></div>
+    </div>
+  </div>
+
+  <!-- Load the bundled editor -->
+  <script src="rp-image-editor.bundle.js"></script>
+  <script>
+    const { openEditorModal } = RpImageEditor;
+
+    // ─── Theme configs ───
+    const themes = {
+      dark: {
+        headerBackground: '#1a1a2e',
+        headerTextColor: '#ffffff',
+        editorBackground: '#000000',
+        toolbarBackground: '#2d2d2d',
+        toolbarIconColor: '#ffffff',
+        toolbarActiveIconColor: '#4a90d9',
+        footerBackground: '#1a1a2e',
+        cancelButtonBackground: 'transparent',
+        cancelButtonTextColor: '#ffffff',
+        cancelButtonBorderColor: '#ffffff',
+        applyButtonBackground: '#4a90d9',
+        applyButtonTextColor: '#ffffff',
+      },
+      light: {
+        headerBackground: '#ffffff',
+        headerTextColor: '#333333',
+        editorBackground: '#f5f5f5',
+        toolbarBackground: '#e0e0e0',
+        toolbarIconColor: '#333333',
+        toolbarActiveIconColor: '#4a90d9',
+        footerBackground: '#ffffff',
+        cancelButtonBackground: '#ffffff',
+        cancelButtonTextColor: '#333333',
+        cancelButtonBorderColor: '#cccccc',
+        applyButtonBackground: '#4a90d9',
+        applyButtonTextColor: '#ffffff',
+      },
+      blue: {
+        headerBackground: '#1565c0',
+        headerTextColor: '#ffffff',
+        editorBackground: '#0d47a1',
+        toolbarBackground: '#1976d2',
+        toolbarIconColor: '#ffffff',
+        toolbarActiveIconColor: '#90caf9',
+        footerBackground: '#1565c0',
+        applyButtonBackground: '#42a5f5',
+      },
+      green: {
+        headerBackground: '#2e7d32',
+        headerTextColor: '#ffffff',
+        editorBackground: '#1b5e20',
+        toolbarBackground: '#388e3c',
+        toolbarIconColor: '#ffffff',
+        toolbarActiveIconColor: '#a5d6a7',
+        footerBackground: '#2e7d32',
+        applyButtonBackground: '#66bb6a',
+      },
+    };
+
+    let selectedTheme = 'dark';
+
+    // ─── Theme selector ───
+    document.querySelectorAll('.theme-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.theme-chip').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedTheme = btn.dataset.theme;
+      });
+    });
+
+    // ─── File input → Open editor ───
+    document.getElementById('imgInput').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      console.log('%c[rp-image-editor] Opening editor for:', 'color: #4a90d9; font-weight: bold', file.name, `(${(file.size / 1024).toFixed(1)} KB)`);
+
+      try {
+        const result = await openEditorModal({
+          image: file,
+          config: {
+            theme: {
+              ...themes[selectedTheme],
+              headerTitle: 'Photo Editor',
+              cancelButtonText: 'Close',
+              applyButtonText: 'Apply',
+            },
+          },
+        });
+
+        if (result) {
+          // ────────────────────────────────────
+          // CONSOLE LOG — This is what you want to see
+          // ────────────────────────────────────
+          console.log('%c[rp-image-editor] ✅ RESULT:', 'color: #66bb6a; font-weight: bold; font-size: 14px');
+          console.log('  📐 Dimensions:', result.width, '×', result.height);
+          console.log('  📦 Format:', result.format.toUpperCase());
+          console.log('  💾 Blob size:', (result.blob.size / 1024).toFixed(1), 'KB');
+          console.log('  📄 File object:', result.file);
+          console.log('  🖼️ Base64 (first 100 chars):', result.base64.substring(0, 100) + '...');
+          console.log('  📋 Full result object:', result);
+
+          // Show in UI
+          const outputSection = document.getElementById('outputSection');
+          const outputImg = document.getElementById('outputImg');
+          const outputMeta = document.getElementById('outputMeta');
+          const consoleHint = document.getElementById('consoleHint');
+
+          outputSection.classList.add('visible');
+          outputImg.src = result.base64;
+          outputMeta.innerHTML = `
+            <div class="meta-item"><div class="meta-label">Dimensions</div><div class="meta-value">${result.width} × ${result.height}</div></div>
+            <div class="meta-item"><div class="meta-label">Format</div><div class="meta-value">${result.format.toUpperCase()}</div></div>
+            <div class="meta-item"><div class="meta-label">File Size</div><div class="meta-value">${(result.blob.size / 1024).toFixed(1)} KB</div></div>
+            <div class="meta-item"><div class="meta-label">File Name</div><div class="meta-value">${result.file.name}</div></div>
+          `;
+          consoleHint.innerHTML = `
+            <span style="color:#888">// Open DevTools Console to see full output</span><br>
+            <span style="color:#ff9800">console.log</span>(result) → <span style="color:#4fc3f7">{ base64, blob, file, width, height, format }</span>
+          `;
+        } else {
+          console.log('%c[rp-image-editor] ❌ Editor cancelled (user clicked Close)', 'color: #ff9800; font-weight: bold');
+        }
+      } catch (err) {
+        console.error('%c[rp-image-editor] Error:', 'color: #f44336; font-weight: bold', err);
+      }
+
+      // Reset input so same file can be selected again
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>

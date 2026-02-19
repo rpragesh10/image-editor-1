@@ -1,0 +1,101 @@
+{
+  "name": "@rageshpikalmunde/rp-image-editor",
+  "version": "1.0.0",
+  "description": "Lightweight JavaScript image editor with crop, zoom, rotate, draw, text, eraser, undo/redo. Framework-agnostic, works with Angular, React, Vue, Ionic, Capacitor. Built on Fabric.js. Supports HEIC, touch gestures, mobile-friendly.",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./styles": "./dist/styles/rp-image-editor.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs && npm run build:types && npm run build:css",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:types": "tsc -p tsconfig.types.json",
+    "build:css": "node scripts/build-css.js",
+    "dev": "tsc -p tsconfig.esm.json --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "image-editor",
+    "javascript-image-editor",
+    "image-crop",
+    "image-rotate",
+    "image-zoom",
+    "image-draw",
+    "image-annotation",
+    "photo-editor",
+    "canvas-editor",
+    "crop",
+    "rotate",
+    "draw",
+    "zoom",
+    "eraser",
+    "undo-redo",
+    "text-overlay",
+    "freehand-drawing",
+    "annotation-tool",
+    "fabricjs",
+    "fabric",
+    "angular",
+    "react",
+    "vue",
+    "ionic",
+    "capacitor",
+    "cordova",
+    "mobile-image-editor",
+    "touch-gestures",
+    "pinch-to-zoom",
+    "heic",
+    "heic-to-jpeg",
+    "exif",
+    "image-processing",
+    "image-manipulation",
+    "browser-image-editor",
+    "lightweight-image-editor",
+    "typescript",
+    "modal-image-editor",
+    "web-image-editor",
+    "frontend-image-editor"
+  ],
+  "author": "Ragesh Pikalmunde",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpragesh/rp-image-editor.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/rpragesh/rp-image-editor#readme",
+  "bugs": {
+    "url": "https://github.com/rpragesh/rp-image-editor/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/rpragesh"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "fabric": "^5.3.0"
+  },
+  "optionalDependencies": {
+    "heic2any": "^0.0.4"
+  },
+  "devDependencies": {
+    "typescript": "~5.3.0"
+  },
+  "sideEffects": false
+}

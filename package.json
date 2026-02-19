@@ -1,0 +1,26 @@
+{
+  "name": "rp-image-editor-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lightweight image editor plugin with crop, zoom, rotate, draw, text, eraser, undo/redo",
+  "workspaces": [
+    "packages/core",
+    "packages/angular",
+    "packages/react"
+  ],
+  "scripts": {
+    "build:core": "cd packages/core && npm run build",
+    "build:angular": "cd packages/angular && npm run build",
+    "build:react": "cd packages/react && npm run build",
+    "build:all": "npm run build:core && npm run build:angular && npm run build:react",
+    "clean": "rm -rf packages/core/dist packages/angular/dist packages/react/dist"
+  },
+  "author": "Ragesh Pikalmunde",
+  "license": "MIT",
+  "devDependencies": {
+    "@angular/common": "^15.2.10",
+    "@angular/core": "^15.2.10",
+    "@types/fabric": "^5.3.11",
+    "esbuild": "^0.27.3"
+  }
+}

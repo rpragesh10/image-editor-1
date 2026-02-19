@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>rp-image-editor Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    h1 { margin-bottom: 20px; color: #333; font-size: 24px; }
+    .demo-container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 500px;
+      width: 100%;
+    }
+    .file-input-label {
+      display: inline-block;
+      padding: 14px 32px;
+      background: #4a90d9;
+      color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .file-input-label:hover { background: #3a7bc8; }
+    input[type="file"] { display: none; }
+    .result-preview {
+      margin-top: 20px;
+      display: none;
+    }
+    .result-preview img {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 8px;
+      border: 2px solid #eee;
+    }
+    .result-info {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    }
+    .theme-selector {
+      margin-top: 16px;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .theme-btn {
+      padding: 8px 16px;
+      border: 2px solid #ddd;
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .theme-btn.active { border-color: #4a90d9; background: #e8f0fe; }
+  </style>
+</head>
+<body>
+  <h1>📷 rp-image-editor Demo</h1>
+
+  <div class="demo-container">
+    <p style="margin-bottom: 16px; color: #555;">Select an image to open the editor</p>
+
+    <label class="file-input-label" for="imageInput">
+      Choose Image
+    </label>
+    <input type="file" id="imageInput" accept=".png,.jpeg,.jpg,.heic,.heif" />
+
+    <div class="theme-selector">
+      <button class="theme-btn active" data-theme="dark">Dark Theme</button>
+      <button class="theme-btn" data-theme="light">Light Theme</button>
+      <button class="theme-btn" data-theme="blue">Blue Theme</button>
+      <button class="theme-btn" data-theme="green">Green Theme</button>
+    </div>
+
+    <div class="result-preview" id="resultPreview">
+      <h3 style="margin-bottom: 10px; color: #333;">Edited Result:</h3>
+      <img id="resultImage" />
+      <div class="result-info" id="resultInfo"></div>
+    </div>
+  </div>
+
+  <!-- Load the editor from local build -->
+  <script type="module">
+    // In development: import from local build
+    // In production: import from npm
+    import { openEditorModal } from './packages/core/dist/esm/index.js';
+
+    const themes = {
+      dark: {
+        headerBackground: '#1a1a2e',
+        headerTextColor: '#ffffff',
+        editorBackground: '#000000',
+        toolbarBackground: '#2d2d2d',
+        footerBackground: '#1a1a2e',
+        applyButtonBackground: '#4a90d9',
+      },
+      light: {
+        headerBackground: '#ffffff',
+        headerTextColor: '#333333',
+        editorBackground: '#f5f5f5',
+        toolbarBackground: '#e0e0e0',
+        toolbarIconColor: '#333333',
+        toolbarActiveIconColor: '#4a90d9',
+        footerBackground: '#ffffff',
+        cancelButtonTextColor: '#333333',
+        cancelButtonBorderColor: '#999999',
+        applyButtonBackground: '#4a90d9',
+      },
+      blue: {
+        headerBackground: '#1565c0',
+        headerTextColor: '#ffffff',
+        editorBackground: '#0d47a1',
+        toolbarBackground: '#1976d2',
+        footerBackground: '#1565c0',
+        applyButtonBackground: '#42a5f5',
+        applyButtonBorderColor: '#42a5f5',
+      },
+      green: {
+        headerBackground: '#2e7d32',
+        headerTextColor: '#ffffff',
+        editorBackground: '#1b5e20',
+        toolbarBackground: '#388e3c',
+        footerBackground: '#2e7d32',
+        applyButtonBackground: '#66bb6a',
+        applyButtonBorderColor: '#66bb6a',
+      },
+    };
+
+    let selectedTheme = 'dark';
+
+    // Theme selector buttons
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedTheme = btn.dataset.theme;
+      });
+    });
+
+    // File input handler
+    document.getElementById('imageInput').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const result = await openEditorModal({
+          image: file,
+          config: {
+            theme: {
+              ...themes[selectedTheme],
+              headerTitle: 'Photo Editor',
+            },
+          },
+        });
+
+        if (result) {
+          // Show result preview
+          const preview = document.getElementById('resultPreview');
+          const img = document.getElementById('resultImage');
+          const info = document.getElementById('resultInfo');
+
+          preview.style.display = 'block';
+          img.src = result.base64;
+          info.textContent = `${result.width}×${result.height} | ${result.format.toUpperCase()} | ${(result.blob.size / 1024).toFixed(1)} KB`;
+
+          console.log('Edit result:', result);
+          console.log('File object (for upload):', result.file);
+        } else {
+          console.log('Editor cancelled');
+        }
+      } catch (err) {
+        console.error('Editor error:', err);
+      }
+
+      // Reset input so same file can be selected again
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>
