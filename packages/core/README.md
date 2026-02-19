@@ -2,12 +2,12 @@
 
 [![npm version](https://img.shields.io/npm/v/@rageshpikalmunde/rp-image-editor.svg)](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor)
 [![npm downloads](https://img.shields.io/npm/dm/@rageshpikalmunde/rp-image-editor.svg)](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor)
-[![license](https://img.shields.io/npm/l/@rageshpikalmunde/rp-image-editor.svg)](https://github.com/rpragesh/rp-image-editor/blob/main/LICENSE)
+[![license](https://img.shields.io/npm/l/@rageshpikalmunde/rp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/@rageshpikalmunde/rp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
 > A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, erase annotations, undo/redo — all in a beautiful modal UI. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
-![rp-image-editor demo](https://raw.githubusercontent.com/rpragesh/rp-image-editor/main/demo/screenshot.png)
+![rp-image-editor demo](https://raw.githubusercontent.com/rpragesh/image-editor/main/demo/screenshot.png)
 
 ## Features
 
@@ -200,7 +200,7 @@ const result = await openEditorModal({
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/rp-image-editor).
+Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
 
 ## License
 
