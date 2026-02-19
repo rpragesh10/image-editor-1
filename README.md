@@ -64,6 +64,42 @@ async editImage(file: File) {
 }
 ```
 
+## Quick Start (React)
+
+```bash
+npm install @rageshpikalmunde/rp-image-editor
+```
+
+```tsx
+import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+function ImageUploader() {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const result = await openEditorModal({
+      image: file,
+      config: {
+        exportFormat: 'jpeg',
+        exportQuality: 0.92,
+        theme: {
+          headerTitle: 'Edit Photo',
+          applyButtonBackground: '#4a90d9',
+        },
+      },
+    });
+
+    if (result) {
+      console.log(result.file);   // File object — upload via FormData
+      console.log(result.base64); // data:image/jpeg;base64,...
+    }
+  };
+
+  return <input type="file" accept="image/*" onChange={handleFile} />;
+}
+```
+
 ## License
 
 MIT
