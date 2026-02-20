@@ -102,6 +102,25 @@ export class Toolbar {
   }
 
   /**
+   * Update the zoom button states (disable zoom-out at min, zoom-in at max)
+   */
+  updateZoomState(zoomLevel: number): void {
+    const zoomOutBtn = this.toolbarEl?.querySelector('[data-action="zoomOut"]') as HTMLElement;
+    const zoomInBtn = this.toolbarEl?.querySelector('[data-action="zoomIn"]') as HTMLElement;
+
+    if (zoomOutBtn) {
+      const canZoomOut = zoomLevel > 1;
+      zoomOutBtn.style.opacity = canZoomOut ? '1' : '0.3';
+      zoomOutBtn.style.pointerEvents = canZoomOut ? 'auto' : 'none';
+    }
+    if (zoomInBtn) {
+      const canZoomIn = zoomLevel < 5;
+      zoomInBtn.style.opacity = canZoomIn ? '1' : '0.3';
+      zoomInBtn.style.pointerEvents = canZoomIn ? 'auto' : 'none';
+    }
+  }
+
+  /**
    * Update the undo/redo button states
    */
   updateHistoryState(canUndo: boolean, canRedo: boolean): void {

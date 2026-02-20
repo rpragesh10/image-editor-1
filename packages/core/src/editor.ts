@@ -153,7 +153,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * Set zoom level
    */
   setZoom(level: number): void {
-    const clampedLevel = Math.max(0.1, Math.min(5, level));
+    const clampedLevel = Math.max(1, Math.min(5, level));
     this.zoomLevel = clampedLevel;
 
     if (this.fabricCanvas) {
@@ -165,6 +165,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.fabricCanvas.renderAll();
     }
 
+    this.toolbar?.updateZoomState(clampedLevel);
     this.emit('zoom:changed', clampedLevel);
   }
 
@@ -250,10 +251,6 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const currentZoom = this.fabricCanvas.getZoom();
     const currentBgColor = this.fabricCanvas.backgroundColor;
 
-    // Reset zoom and viewport for export
-    this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    this.fabricCanvas.setZoom(1);
-
     // Determine the image region bounds from the base image
     let imgLeft = 0;
     let imgTop = 0;
@@ -269,10 +266,39 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       imgDisplayH = (this.baseImage.height || imgDisplayH) * scaleY;
     }
 
-    // Use an offscreen canvas to render ONLY the image region.
-    // This avoids any Fabric.js toDataURL quirks that include extra canvas padding.
-    const offW = Math.round(imgDisplayW * multiplier);
-    const offH = Math.round(imgDisplayH * multiplier);
+    // Calculate the visible region based on current zoom/pan viewport
+    const canvasW = this.fabricCanvas.getWidth();
+    const canvasH = this.fabricCanvas.getHeight();
+    const vpt = currentVPT || [1, 0, 0, 1, 0, 0];
+    const zoom = currentZoom || 1;
+
+    // Map screen corners to image-space using inverse viewport transform
+    const invVpt = fabric.util.invertTransform(vpt as any);
+    const tl = fabric.util.transformPoint(new fabric.Point(0, 0), invVpt as any);
+    const br = fabric.util.transformPoint(new fabric.Point(canvasW, canvasH), invVpt as any);
+
+    // Clamp visible region to image bounds
+    const visLeft = Math.max(tl.x, imgLeft);
+    const visTop = Math.max(tl.y, imgTop);
+    const visRight = Math.min(br.x, imgLeft + imgDisplayW);
+    const visBottom = Math.min(br.y, imgTop + imgDisplayH);
+    const visWidth = Math.max(0, visRight - visLeft);
+    const visHeight = Math.max(0, visBottom - visTop);
+
+    // If zoom is 1× and no pan, export the full image region (backwards-compatible)
+    const isDefaultView = zoom === 1 && vpt[4] === 0 && vpt[5] === 0;
+    const exportLeft = isDefaultView ? imgLeft : visLeft;
+    const exportTop = isDefaultView ? imgTop : visTop;
+    const exportW = isDefaultView ? imgDisplayW : visWidth;
+    const exportH = isDefaultView ? imgDisplayH : visHeight;
+
+    // Reset viewport for clean rendering — we handle the offset manually
+    this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    this.fabricCanvas.setZoom(1);
+
+    // Use an offscreen canvas to render ONLY the visible image region.
+    const offW = Math.round(exportW * multiplier);
+    const offH = Math.round(exportH * multiplier);
     const offscreen = document.createElement('canvas');
     offscreen.width = offW;
     offscreen.height = offH;
@@ -289,10 +315,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.renderAll();
 
     // Render the Fabric canvas onto the offscreen canvas, offset so only
-    // the image region is captured (no surrounding canvas padding).
+    // the visible image region is captured.
     offCtx.save();
     offCtx.scale(multiplier, multiplier);
-    offCtx.translate(-imgLeft, -imgTop);
+    offCtx.translate(-exportLeft, -exportTop);
     (this.fabricCanvas as any).renderCanvas(
       offCtx,
       this.fabricCanvas.getObjects(),
@@ -571,6 +597,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       callbacks
     );
     this.toolbar.render();
+    // Disable zoom-out button initially since zoom starts at 1×
+    this.toolbar.updateZoomState(this.zoomLevel);
   }
 
   private deactivateCurrentMode(): void {
@@ -718,12 +746,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     canvas.on('mouse:wheel', (opt: fabric.IEvent<WheelEvent>) => {
       const delta = (opt.e as WheelEvent).deltaY;
       let newZoom = this.zoomLevel * (delta > 0 ? 0.95 : 1.05);
-      newZoom = Math.max(0.1, Math.min(5, newZoom));
+      newZoom = Math.max(1, Math.min(5, newZoom));
 
       const pointer = canvas.getPointer(opt.e, true);
       canvas.zoomToPoint(new fabric.Point(pointer.x, pointer.y), newZoom);
-      this.zoomLevel = newZoom;
-      this.emit('zoom:changed', newZoom);
+      this.zoomLevel = newZoom;      this.toolbar?.updateZoomState(newZoom);      this.emit('zoom:changed', newZoom);
 
       opt.e.preventDefault();
       opt.e.stopPropagation();
@@ -755,7 +782,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         const dist = this.getTouchDistance(activeTouches[0], activeTouches[1]);
         if (this.lastPinchDistance > 0) {
           const scale = dist / this.lastPinchDistance;
-          const newZoom = Math.max(0.1, Math.min(5, this.zoomLevel * scale));
+          const newZoom = Math.max(1, Math.min(5, this.zoomLevel * scale));
 
           const midX = (activeTouches[0].clientX + activeTouches[1].clientX) / 2;
           const midY = (activeTouches[0].clientY + activeTouches[1].clientY) / 2;
@@ -766,6 +793,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
           this.fabricCanvas.zoomToPoint(new fabric.Point(canvasX, canvasY), newZoom);
           this.zoomLevel = newZoom;
+          this.toolbar?.updateZoomState(newZoom);
           this.emit('zoom:changed', newZoom);
         }
         this.lastPinchDistance = dist;
