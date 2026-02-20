@@ -13,6 +13,7 @@
     "build:angular": "cd packages/angular && npm run build",
     "build:react": "cd packages/react && npm run build",
     "build:all": "npm run build:core && npm run build:angular && npm run build:react",
+    "build:demo": "node scripts/build-demo.js",
     "clean": "rm -rf packages/core/dist packages/angular/dist packages/react/dist"
   },
   "author": "Ragesh Pikalmunde",
@@ -22,5 +23,8 @@
     "@angular/core": "^15.2.10",
     "@types/fabric": "^5.3.11",
     "esbuild": "^0.27.3"
+  },
+  "dependencies": {
+    "@rageshpikalmunde/rp-image-editor": "^1.0.0"
   }
 }

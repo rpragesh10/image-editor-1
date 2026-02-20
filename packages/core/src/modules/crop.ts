@@ -2,7 +2,7 @@
  * Crop Module — handles free crop, aspect-ratio locked crop, and crop application
  */
 import { fabric } from 'fabric';
-import { CropAspectRatio } from '../types';
+import { CropAspectRatio } from '../types/index.js';
 
 export class CropModule {
   private canvas: fabric.Canvas;

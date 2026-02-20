@@ -1,4 +1,4 @@
-import { RpEditorConfig, CropAspectRatio } from '../types';
+import { RpEditorConfig, CropAspectRatio } from '../types/index.js';
 
 /**
  * Default configuration values

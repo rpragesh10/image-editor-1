@@ -10,17 +10,17 @@ import {
   EditorMode,
   LoadedImageInfo,
   RpEditorTheme,
-} from './types';
-import { mergeConfig } from './utils/defaults';
-import { EventEmitter } from './utils/event-emitter';
-import { processImage } from './utils/image-processing';
-import { isTouchDevice } from './utils/platform';
-import { CropModule } from './modules/crop';
-import { DrawModule } from './modules/draw';
-import { TextModule } from './modules/text';
-import { EraserModule } from './modules/eraser';
-import { HistoryModule } from './modules/history';
-import { Toolbar, ToolbarCallbacks } from './ui/toolbar';
+} from './types/index.js';
+import { mergeConfig } from './utils/defaults.js';
+import { EventEmitter } from './utils/event-emitter.js';
+import { processImage } from './utils/image-processing.js';
+import { isTouchDevice } from './utils/platform.js';
+import { CropModule } from './modules/crop.js';
+import { DrawModule } from './modules/draw.js';
+import { TextModule } from './modules/text.js';
+import { EraserModule } from './modules/eraser.js';
+import { HistoryModule } from './modules/history.js';
+import { Toolbar, ToolbarCallbacks } from './ui/toolbar.js';
 
 export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private config: ReturnType<typeof mergeConfig>;

@@ -7,6 +7,8 @@
 
 > A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, erase annotations, undo/redo — all in a beautiful modal UI. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
+**[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
+
 ![rp-image-editor demo](https://raw.githubusercontent.com/rpragesh/image-editor/main/demo/screenshot.png)
 
 ## Features

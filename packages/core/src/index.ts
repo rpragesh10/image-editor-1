@@ -4,11 +4,11 @@
  */
 
 // Core editor
-export { RpImageEditor } from './editor';
+export { RpImageEditor } from './editor.js';
 
 // Modal helper
-export { openEditorModal } from './modal';
-export type { ModalOptions } from './modal';
+export { openEditorModal } from './modal.js';
+export type { ModalOptions } from './modal.js';
 
 // Types
 export type {
@@ -19,9 +19,9 @@ export type {
   EditorMode,
   RpEditorEvents,
   LoadedImageInfo,
-} from './types';
+} from './types/index.js';
 
 // Utils (for advanced users)
-export { processImage, isHeicFile } from './utils/image-processing';
-export { isIOS, isSafari, isCapacitor, isTouchDevice, getMaxResolution } from './utils/platform';
-export { mergeConfig, DEFAULT_CONFIG } from './utils/defaults';
+export { processImage, isHeicFile } from './utils/image-processing.js';
+export { isIOS, isSafari, isCapacitor, isTouchDevice, getMaxResolution } from './utils/platform.js';
+export { mergeConfig, DEFAULT_CONFIG } from './utils/defaults.js';

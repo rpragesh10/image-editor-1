@@ -114,3 +114,13 @@ const distDir = path.join(__dirname, '..', 'dist', 'styles');
 fs.mkdirSync(distDir, { recursive: true });
 fs.writeFileSync(path.join(distDir, 'rp-image-editor.css'), css.trim());
 console.log('CSS built: dist/styles/rp-image-editor.css');
+
+// Generate package.json markers for ESM and CJS directories
+// This ensures Node.js correctly interprets .js files in each directory
+const esmDir = path.join(__dirname, '..', 'dist', 'esm');
+const cjsDir = path.join(__dirname, '..', 'dist', 'cjs');
+fs.mkdirSync(esmDir, { recursive: true });
+fs.mkdirSync(cjsDir, { recursive: true });
+fs.writeFileSync(path.join(esmDir, 'package.json'), JSON.stringify({ type: 'module' }, null, 2));
+fs.writeFileSync(path.join(cjsDir, 'package.json'), JSON.stringify({ type: 'commonjs' }, null, 2));
+console.log('Module type markers written: dist/esm/package.json, dist/cjs/package.json');

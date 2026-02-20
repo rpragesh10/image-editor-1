@@ -1,8 +1,8 @@
 /**
  * Toolbar UI — renders a vanilla HTML toolbar with SVG icons
  */
-import { ICONS } from './icons';
-import { EditorMode, RpEditorTheme, CropAspectRatio } from '../types';
+import { ICONS } from './icons.js';
+import { EditorMode, RpEditorTheme, CropAspectRatio } from '../types/index.js';
 
 export interface ToolbarCallbacks {
   onModeChange: (mode: EditorMode) => void;

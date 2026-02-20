@@ -2,8 +2,8 @@
  * Image processing utilities: HEIC conversion, EXIF correction, downscaling
  */
 
-import { LoadedImageInfo } from '../types';
-import { getMaxResolution } from './platform';
+import { LoadedImageInfo } from '../types/index.js';
+import { getMaxResolution } from './platform.js';
 
 /**
  * Check if a file is HEIC format

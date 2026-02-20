@@ -1,9 +1,9 @@
 /**
  * Modal UI — creates a full-screen modal wrapping the editor
  */
-import { RpEditorConfig, RpEditorResult, RpEditorTheme } from './types';
-import { mergeConfig } from './utils/defaults';
-import { RpImageEditor } from './editor';
+import { RpEditorConfig, RpEditorResult, RpEditorTheme } from './types/index.js';
+import { mergeConfig } from './utils/defaults.js';
+import { RpImageEditor } from './editor.js';
 
 export interface ModalOptions {
   image: File | Blob | string;

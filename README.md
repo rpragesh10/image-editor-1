@@ -2,6 +2,8 @@
 
 A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 
+**[Live Demo](https://rpragesh.github.io/image-editor/)** · [npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor)
+
 ## Features
 
 - **Free crop** and aspect-ratio locked crop
