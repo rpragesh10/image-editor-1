@@ -9,7 +9,7 @@
 
 **[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
 
-![rp-image-editor demo](https://raw.githubusercontent.com/rpragesh/image-editor/main/demo/screenshot.png)
+![rp-image-editor screenshot](https://raw.githubusercontent.com/rpragesh/image-editor/main/demo/screenshot.png)
 
 ## Features
 
