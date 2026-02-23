@@ -98,10 +98,10 @@
   </div>
 
   <!-- Load the editor from local build -->
-  <script type="module">
-    // In development: import from local build
-    // In production: import from npm
-    import { openEditorModal } from './packages/core/dist/esm/index.js';
+  <script src="rp-image-editor.bundle.js"></script>
+  <script>
+    // Use the IIFE global
+    const { openEditorModal } = RpImageEditor;
 
     const themes = {
       dark: {

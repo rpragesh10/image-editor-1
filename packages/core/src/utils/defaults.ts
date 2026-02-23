@@ -31,6 +31,7 @@ export const DEFAULT_CONFIG: Required<
     '#ff69b4', '#00cccc',
   ],
   showToolbar: true,
+  disabledFeatures: [],
   theme: {
     headerBackground: '#f5f5f5',
     headerTextColor: '#222222',

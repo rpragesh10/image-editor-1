@@ -38,6 +38,16 @@ export interface RpEditorConfig {
   /** Whether to show the built-in toolbar. Default: true */
   showToolbar?: boolean;
 
+  /**
+   * Features to hide from the toolbar.
+   * Accepts individual tool names: 'move','crop','zoomIn','zoomOut','rotateLeft','rotateRight',
+   * 'draw','text','eraser','callout','undo','redo','reset'
+   * Or group names: 'zoom' (zoomIn+zoomOut), 'transform' (rotateLeft+rotateRight+reset),
+   * 'annotate' (draw+text+callout+eraser)
+   * Default: [] (all features visible)
+   */
+  disabledFeatures?: string[];
+
   /** Theme customization */
   theme?: RpEditorTheme;
 
@@ -109,7 +119,7 @@ export interface RpEditorResult {
 /**
  * Editor tool modes
  */
-export type EditorMode = 'move' | 'crop' | 'draw' | 'text' | 'eraser';
+export type EditorMode = 'move' | 'crop' | 'draw' | 'text' | 'eraser' | 'callout';
 
 /**
  * Event types emitted by the editor

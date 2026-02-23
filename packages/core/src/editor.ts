@@ -19,6 +19,7 @@ import { CropModule } from './modules/crop.js';
 import { DrawModule } from './modules/draw.js';
 import { TextModule } from './modules/text.js';
 import { EraserModule } from './modules/eraser.js';
+import { CalloutModule } from './modules/callout.js';
 import { HistoryModule } from './modules/history.js';
 import { Toolbar, ToolbarCallbacks } from './ui/toolbar.js';
 
@@ -37,6 +38,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private drawModule: DrawModule | null = null;
   private textModule: TextModule | null = null;
   private eraserModule: EraserModule | null = null;
+  private calloutModule: CalloutModule | null = null;
   private historyModule: HistoryModule | null = null;
   private toolbar: Toolbar | null = null;
 
@@ -128,6 +130,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         break;
       case 'eraser':
         this.eraserModule?.activate();
+        break;
+      case 'callout':
+        this.calloutModule?.activate();
         break;
     }
 
@@ -221,6 +226,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   setColor(color: string): void {
     this.drawModule?.setBrushColor(color);
     this.textModule?.setTextColor(color);
+    this.calloutModule?.setColor(color);
   }
 
   /**
@@ -382,6 +388,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.drawModule = null;
     this.textModule = null;
     this.eraserModule = null;
+    this.calloutModule = null;
     this.historyModule = null;
     this.toolbar = null;
   }
@@ -516,13 +523,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.drawModule = new DrawModule(this.fabricCanvas);
     this.textModule = new TextModule(this.fabricCanvas);
     this.eraserModule = new EraserModule(this.fabricCanvas);
+    this.calloutModule = new CalloutModule(this.fabricCanvas);
     this.historyModule = new HistoryModule(this.fabricCanvas, this.config.maxUndoSteps);
 
     // Set defaults from config
-    this.drawModule.setBrushColor(this.config.defaultBrushColor);
-    this.drawModule.setBrushWidth(this.config.defaultBrushWidth);
-    this.textModule.setTextColor(this.config.defaultTextColor);
-    this.textModule.setFontSize(this.config.defaultTextFontSize);
+
+    this.drawModule?.setBrushColor(this.config.defaultBrushColor);
+    this.drawModule?.setBrushWidth(this.config.defaultBrushWidth);
+    this.textModule?.setTextColor(this.config.defaultTextColor);
+    this.textModule?.setFontSize(this.config.defaultTextFontSize);
+    this.calloutModule?.setColor(this.config.defaultBrushColor);
 
     // Listen for drawing completion to save undo state
     this.fabricCanvas.on('path:created', () => {
@@ -550,6 +560,13 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // Listen for object removal (eraser)
     this.fabricCanvas.on('object:removed', (e: any) => {
       if (e.target?._rpAnnotation) {
+        this.historyModule?.saveState();
+      }
+    });
+
+    // Listen for callout / annotation additions
+    this.fabricCanvas.on('object:added', (e: any) => {
+      if (e.target?._rpType === 'callout') {
         this.historyModule?.saveState();
       }
     });
@@ -594,7 +611,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.config.theme,
       this.config.colorPalette,
       this.config.cropAspectRatios,
-      callbacks
+      callbacks,
+      this.config.disabledFeatures
     );
     this.toolbar.render();
     // Disable zoom-out button initially since zoom starts at 1×
@@ -605,6 +623,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.drawModule?.deactivate();
     this.textModule?.deactivate();
     this.eraserModule?.deactivate();
+    this.calloutModule?.deactivate();
 
     if (this.fabricCanvas) {
       this.fabricCanvas.isDrawingMode = false;

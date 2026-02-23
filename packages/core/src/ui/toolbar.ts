@@ -1,5 +1,5 @@
 /**
- * Toolbar UI — renders a vanilla HTML toolbar with SVG icons
+ * Toolbar UI — grouped toolbar with flyout menus, tooltips, and disabledFeatures support
  */
 import { ICONS } from './icons.js';
 import { EditorMode, RpEditorTheme, CropAspectRatio } from '../types/index.js';
@@ -20,48 +20,96 @@ export interface ToolbarCallbacks {
   onCancelCrop: () => void;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Button / Group definition types                                   */
+/* ------------------------------------------------------------------ */
+
+interface ToolButton {
+  /** Key used for disabledFeatures matching and data attribute */
+  id: string;
+  icon: string;
+  title: string;
+  mode?: EditorMode;
+  action?: string;
+}
+
+interface ToolGroup {
+  /** Key used for disabledFeatures matching at the group level */
+  id: string;
+  icon: string;
+  title: string;
+  children: ToolButton[];
+}
+
+type ToolItem = (ToolButton & { type: 'button' }) | (ToolGroup & { type: 'group' });
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Expand group-level disabled names into their individual children.
+ * e.g. 'zoom' -> ['zoomIn', 'zoomOut']
+ */
+const GROUP_EXPANSION: Record<string, string[]> = {
+  zoom: ['zoomIn', 'zoomOut'],
+  transform: ['rotateLeft', 'rotateRight'],
+  annotate: ['draw', 'text', 'callout', 'eraser'],
+};
+
+function expandDisabled(raw: string[]): Set<string> {
+  const set = new Set<string>();
+  for (const name of raw) {
+    const expanded = GROUP_EXPANSION[name];
+    if (expanded) {
+      expanded.forEach((n) => set.add(n));
+      set.add(name); // also mark group id itself
+    } else {
+      set.add(name);
+    }
+  }
+  return set;
+}
+
+/* ------------------------------------------------------------------ */
+
 export class Toolbar {
   private container: HTMLElement;
   private theme: RpEditorTheme;
   private colorPalette: string[];
   private cropRatios: CropAspectRatio[];
   private callbacks: ToolbarCallbacks;
+  private disabledSet: Set<string>;
+
   private activeMode: EditorMode = 'move';
   private toolbarEl: HTMLElement | null = null;
   private subPanelEl: HTMLElement | null = null;
+  private openFlyout: HTMLElement | null = null;
   private canUndoState = false;
   private canRedoState = false;
+
+  /** Outside-click handler reference (for cleanup) */
+  private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
 
   constructor(
     container: HTMLElement,
     theme: RpEditorTheme,
     colorPalette: string[],
     cropRatios: CropAspectRatio[],
-    callbacks: ToolbarCallbacks
+    callbacks: ToolbarCallbacks,
+    disabledFeatures: string[] = []
   ) {
     this.container = container;
     this.theme = theme;
     this.colorPalette = colorPalette;
     this.cropRatios = cropRatios;
     this.callbacks = callbacks;
+    this.disabledSet = expandDisabled(disabledFeatures);
   }
 
-  /**
-   * Render the toolbar into the container
-   */
-  render(): void {
-    this.toolbarEl = document.createElement('div');
-    this.toolbarEl.className = 'rp-editor-toolbar';
-    this.toolbarEl.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      padding: 10px 8px;
-      background: ${this.theme.toolbarBackground || '#2d2d2d'};
-      flex-wrap: wrap;
-    `;
+  /* ================================================================ */
+  /*  Public API                                                      */
+  /* ================================================================ */
 
+  render(): void {
     // Sub-panel for contextual controls (colors, crop ratios, brush width)
     this.subPanelEl = document.createElement('div');
     this.subPanelEl.className = 'rp-editor-subpanel';
@@ -76,126 +124,147 @@ export class Toolbar {
       border-top: 1px solid rgba(255,255,255,0.1);
     `;
 
-    const buttons: { icon: string; mode?: EditorMode; action?: string; title: string }[] = [
-      { icon: 'move', mode: 'move', title: 'Move / Pan' },
-      { icon: 'crop', mode: 'crop', title: 'Crop' },
-      { icon: 'zoomIn', action: 'zoomIn', title: 'Zoom In' },
-      { icon: 'zoomOut', action: 'zoomOut', title: 'Zoom Out' },
-      { icon: 'rotateLeft', action: 'rotateLeft', title: 'Rotate Left' },
-      { icon: 'rotateRight', action: 'rotateRight', title: 'Rotate Right' },
-      { icon: 'draw', mode: 'draw', title: 'Draw' },
-      { icon: 'text', mode: 'text', title: 'Add Text' },
-      { icon: 'eraser', mode: 'eraser', title: 'Eraser' },
-      { icon: 'undo', action: 'undo', title: 'Undo' },
-      { icon: 'redo', action: 'redo', title: 'Redo' },
-      { icon: 'reset', action: 'reset', title: 'Reset' },
-    ];
+    // Main toolbar row
+    this.toolbarEl = document.createElement('div');
+    this.toolbarEl.className = 'rp-editor-toolbar';
+    this.toolbarEl.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 10px 8px;
+      background: ${this.theme.toolbarBackground || '#2d2d2d'};
+      flex-wrap: wrap;
+      position: relative;
+    `;
 
-    buttons.forEach((btn) => {
-      const el = this.createToolButton(btn.icon, btn.title, btn.mode, btn.action);
-      this.toolbarEl!.appendChild(el);
+    const items = this.buildItemList();
+    items.forEach((item) => {
+      if (item.type === 'button') {
+        const el = this.createToolButton(item);
+        this.toolbarEl!.appendChild(el);
+      } else {
+        const el = this.createGroupButton(item);
+        if (el) this.toolbarEl!.appendChild(el);
+      }
     });
 
     this.container.appendChild(this.subPanelEl);
     this.container.appendChild(this.toolbarEl);
     this.updateActiveButton();
+
+    // Global click to close flyouts
+    this.outsideClickHandler = (e: MouseEvent) => {
+      if (this.openFlyout && !this.openFlyout.contains(e.target as Node)) {
+        this.closeFlyout();
+      }
+    };
+    document.addEventListener('mousedown', this.outsideClickHandler, true);
   }
 
-  /**
-   * Update the zoom button states (disable zoom-out at min, zoom-in at max)
-   */
   updateZoomState(zoomLevel: number): void {
-    const zoomOutBtn = this.toolbarEl?.querySelector('[data-action="zoomOut"]') as HTMLElement;
-    const zoomInBtn = this.toolbarEl?.querySelector('[data-action="zoomIn"]') as HTMLElement;
-
-    if (zoomOutBtn) {
-      const canZoomOut = zoomLevel > 1;
-      zoomOutBtn.style.opacity = canZoomOut ? '1' : '0.3';
-      zoomOutBtn.style.pointerEvents = canZoomOut ? 'auto' : 'none';
-    }
-    if (zoomInBtn) {
-      const canZoomIn = zoomLevel < 5;
-      zoomInBtn.style.opacity = canZoomIn ? '1' : '0.3';
-      zoomInBtn.style.pointerEvents = canZoomIn ? 'auto' : 'none';
-    }
+    this.setItemOpacity('zoomOut', zoomLevel > 1);
+    this.setItemOpacity('zoomIn', zoomLevel < 5);
   }
 
-  /**
-   * Update the undo/redo button states
-   */
   updateHistoryState(canUndo: boolean, canRedo: boolean): void {
     this.canUndoState = canUndo;
     this.canRedoState = canRedo;
-
-    const undoBtn = this.toolbarEl?.querySelector('[data-action="undo"]') as HTMLElement;
-    const redoBtn = this.toolbarEl?.querySelector('[data-action="redo"]') as HTMLElement;
-
-    if (undoBtn) {
-      undoBtn.style.opacity = canUndo ? '1' : '0.3';
-      undoBtn.style.pointerEvents = canUndo ? 'auto' : 'none';
-    }
-    if (redoBtn) {
-      redoBtn.style.opacity = canRedo ? '1' : '0.3';
-      redoBtn.style.pointerEvents = canRedo ? 'auto' : 'none';
-    }
+    this.setItemOpacity('undo', canUndo);
+    this.setItemOpacity('redo', canRedo);
   }
 
-  /**
-   * Set the active mode (highlights the button)
-   */
   setActiveMode(mode: EditorMode): void {
     this.activeMode = mode;
     this.updateActiveButton();
     this.updateSubPanel();
   }
 
-  /**
-   * Clean up DOM
-   */
   destroy(): void {
-    if (this.toolbarEl) {
-      this.toolbarEl.remove();
-      this.toolbarEl = null;
+    if (this.outsideClickHandler) {
+      document.removeEventListener('mousedown', this.outsideClickHandler, true);
+      this.outsideClickHandler = null;
     }
-    if (this.subPanelEl) {
-      this.subPanelEl.remove();
-      this.subPanelEl = null;
-    }
+    this.toolbarEl?.remove();
+    this.subPanelEl?.remove();
+    this.toolbarEl = null;
+    this.subPanelEl = null;
   }
 
-  private createToolButton(
-    iconKey: string,
-    title: string,
-    mode?: EditorMode,
-    action?: string
-  ): HTMLElement {
+  /* ================================================================ */
+  /*  Item definitions                                                */
+  /* ================================================================ */
+
+  private buildItemList(): ToolItem[] {
+    const all: ToolItem[] = [
+      { type: 'button', id: 'move', icon: 'move', title: 'Move / Pan', mode: 'move' },
+      { type: 'button', id: 'crop', icon: 'crop', title: 'Crop', mode: 'crop' },
+      {
+        type: 'group', id: 'zoom', icon: 'zoom', title: 'Zoom',
+        children: [
+          { id: 'zoomIn', icon: 'zoomIn', title: 'Zoom In', action: 'zoomIn' },
+          { id: 'zoomOut', icon: 'zoomOut', title: 'Zoom Out', action: 'zoomOut' },
+        ],
+      },
+      {
+        type: 'group', id: 'transform', icon: 'transform', title: 'Transform',
+        children: [
+          { id: 'rotateLeft', icon: 'rotateLeft', title: 'Rotate Left', action: 'rotateLeft' },
+          { id: 'rotateRight', icon: 'rotateRight', title: 'Rotate Right', action: 'rotateRight' },
+        ],
+      },
+      {
+        type: 'group', id: 'annotate', icon: 'annotate', title: 'Annotate',
+        children: [
+          { id: 'draw', icon: 'draw', title: 'Draw', mode: 'draw' },
+          { id: 'text', icon: 'text', title: 'Add Text', mode: 'text' },
+          { id: 'callout', icon: 'callout', title: 'Callout', mode: 'callout' },
+          { id: 'eraser', icon: 'eraser', title: 'Eraser', mode: 'eraser' },
+        ],
+      },
+      { type: 'button', id: 'undo', icon: 'undo', title: 'Undo', action: 'undo' },
+      { type: 'button', id: 'redo', icon: 'redo', title: 'Redo', action: 'redo' },
+      { type: 'button', id: 'reset', icon: 'reset', title: 'Reset', action: 'reset' },
+    ];
+
+    // Filter out disabled items
+    return all.reduce<ToolItem[]>((acc, item) => {
+      if (item.type === 'button') {
+        if (!this.disabledSet.has(item.id)) acc.push(item);
+      } else {
+        // Filter children first
+        const visibleChildren = item.children.filter((c) => !this.disabledSet.has(c.id));
+        if (visibleChildren.length > 0) {
+          // If the group id itself is disabled, skip entirely
+          if (this.disabledSet.has(item.id)) return acc;
+          // If only 1 child remains, promote it to a top-level button
+          if (visibleChildren.length === 1) {
+            const c = visibleChildren[0];
+            acc.push({ type: 'button', ...c });
+          } else {
+            acc.push({ ...item, children: visibleChildren });
+          }
+        }
+      }
+      return acc;
+    }, []);
+  }
+
+  /* ================================================================ */
+  /*  Button creation                                                 */
+  /* ================================================================ */
+
+  private createToolButton(def: ToolButton & { type?: string }): HTMLElement {
     const btn = document.createElement('button');
     btn.className = 'rp-editor-tool-btn';
-    btn.title = title;
-    btn.innerHTML = (ICONS as any)[iconKey] || '';
+    btn.innerHTML = (ICONS as any)[def.icon] || '';
 
-    if (mode) {
-      btn.dataset.mode = mode;
-    }
-    if (action) {
-      btn.dataset.action = action;
-    }
+    if (def.mode) btn.dataset.mode = def.mode;
+    if (def.action) btn.dataset.action = def.action;
+    btn.dataset.toolId = def.id;
 
-    btn.style.cssText = `
-      width: 40px;
-      height: 40px;
-      padding: 8px;
-      border: none;
-      background: transparent;
-      color: ${this.theme.toolbarIconColor || '#ffffff'};
-      cursor: pointer;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.2s, color 0.2s;
-      -webkit-tap-highlight-color: transparent;
-    `;
+    this.applyBtnStyle(btn);
+    this.applyTooltip(btn, def.title);
 
     btn.querySelector('svg')?.setAttribute('width', '22');
     btn.querySelector('svg')?.setAttribute('height', '22');
@@ -203,23 +272,113 @@ export class Toolbar {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleButtonClick(mode, action);
+      this.closeFlyout();
+      this.handleButtonClick(def.mode, def.action);
     });
-
-    // Hover effect
-    btn.addEventListener('mouseenter', () => {
-      if (!(mode && this.activeMode === mode)) {
-        btn.style.background = 'rgba(255,255,255,0.1)';
-      }
-    });
-    btn.addEventListener('mouseleave', () => {
-      if (!(mode && this.activeMode === mode)) {
-        btn.style.background = 'transparent';
-      }
-    });
-
+    this.addHoverEffect(btn);
     return btn;
   }
+
+  private createGroupButton(group: ToolGroup & { type: string }): HTMLElement | null {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position: relative; display: inline-flex;';
+    wrapper.dataset.groupId = group.id;
+
+    // The visible trigger button
+    const btn = document.createElement('button');
+    btn.className = 'rp-editor-tool-btn rp-editor-group-btn';
+    btn.dataset.groupId = group.id;
+
+    // Icon + chevron
+    const iconSpan = document.createElement('span');
+    iconSpan.innerHTML = (ICONS as any)[group.icon] || '';
+    iconSpan.querySelector('svg')?.setAttribute('width', '18');
+    iconSpan.querySelector('svg')?.setAttribute('height', '18');
+    iconSpan.style.cssText = 'display:flex;align-items:center;';
+
+    const chevron = document.createElement('span');
+    chevron.innerHTML = ICONS.chevronDown;
+    chevron.querySelector('svg')?.setAttribute('width', '8');
+    chevron.querySelector('svg')?.setAttribute('height', '8');
+    chevron.style.cssText = 'display:flex;align-items:center;margin-left:2px;opacity:0.7;';
+
+    btn.appendChild(iconSpan);
+    btn.appendChild(chevron);
+
+    this.applyBtnStyle(btn, true);
+    this.applyTooltip(btn, group.title);
+    this.addHoverEffect(btn);
+
+    // Build flyout panel
+    const flyout = this.buildFlyout(group.children);
+    wrapper.appendChild(flyout);
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.openFlyout === flyout) {
+        this.closeFlyout();
+      } else {
+        this.closeFlyout();
+        flyout.style.display = 'flex';
+        this.openFlyout = flyout;
+      }
+    });
+
+    wrapper.appendChild(btn);
+    return wrapper;
+  }
+
+  private buildFlyout(children: ToolButton[]): HTMLElement {
+    const panel = document.createElement('div');
+    panel.className = 'rp-editor-flyout';
+    panel.style.cssText = `
+      display: none;
+      flex-direction: row;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: ${this.theme.toolbarBackground || '#2d2d2d'};
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 4px;
+      gap: 2px;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      white-space: nowrap;
+    `;
+
+    children.forEach((c) => {
+      const childBtn = document.createElement('button');
+      childBtn.className = 'rp-editor-tool-btn';
+      childBtn.innerHTML = (ICONS as any)[c.icon] || '';
+      if (c.mode) childBtn.dataset.mode = c.mode;
+      if (c.action) childBtn.dataset.action = c.action;
+      childBtn.dataset.toolId = c.id;
+
+      this.applyBtnStyle(childBtn);
+      this.applyTooltip(childBtn, c.title);
+
+      childBtn.querySelector('svg')?.setAttribute('width', '22');
+      childBtn.querySelector('svg')?.setAttribute('height', '22');
+
+      childBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Keep flyout open — only close on outside click
+        this.handleButtonClick(c.mode, c.action);
+      });
+      this.addHoverEffect(childBtn);
+      panel.appendChild(childBtn);
+    });
+
+    return panel;
+  }
+
+  /* ================================================================ */
+  /*  Click / state handling                                          */
+  /* ================================================================ */
 
   private handleButtonClick(mode?: EditorMode, action?: string): void {
     if (mode) {
@@ -242,7 +401,7 @@ export class Toolbar {
 
   private updateActiveButton(): void {
     if (!this.toolbarEl) return;
-
+    // Top-level and flyout buttons
     const buttons = this.toolbarEl.querySelectorAll('.rp-editor-tool-btn');
     buttons.forEach((btn) => {
       const el = btn as HTMLElement;
@@ -254,15 +413,40 @@ export class Toolbar {
         ? '#ffffff'
         : (this.theme.toolbarIconColor || '#ffffff');
     });
+
+    // Highlight group trigger when a child mode is active
+    const groupBtns = this.toolbarEl.querySelectorAll('.rp-editor-group-btn');
+    groupBtns.forEach((btn) => {
+      const groupEl = btn as HTMLElement;
+      const wrapper = groupEl.closest('[data-group-id]');
+      if (!wrapper) return;
+      const flyout = wrapper.querySelector('.rp-editor-flyout');
+      if (!flyout) return;
+      const hasActiveChild = flyout.querySelector(`[data-mode="${this.activeMode}"]`) != null;
+      if (hasActiveChild) {
+        groupEl.style.background = this.theme.toolbarActiveIconColor || '#4a90d9';
+        groupEl.style.color = '#ffffff';
+      }
+    });
   }
+
+  private closeFlyout(): void {
+    if (this.openFlyout) {
+      this.openFlyout.style.display = 'none';
+      this.openFlyout = null;
+    }
+  }
+
+  /* ================================================================ */
+  /*  Sub-panel (colors, crop)                                        */
+  /* ================================================================ */
 
   private updateSubPanel(): void {
     if (!this.subPanelEl) return;
-
     this.subPanelEl.innerHTML = '';
     this.subPanelEl.style.display = 'none';
 
-    if (this.activeMode === 'draw' || this.activeMode === 'text') {
+    if (this.activeMode === 'draw' || this.activeMode === 'text' || this.activeMode === 'callout') {
       this.showColorPicker();
     } else if (this.activeMode === 'crop') {
       this.showCropRatioSelector();
@@ -273,7 +457,6 @@ export class Toolbar {
     if (!this.subPanelEl) return;
     this.subPanelEl.style.display = 'flex';
 
-    // Color swatches
     this.colorPalette.forEach((color) => {
       const swatch = document.createElement('button');
       swatch.className = 'rp-color-swatch';
@@ -292,8 +475,6 @@ export class Toolbar {
       swatch.addEventListener('click', (e) => {
         e.preventDefault();
         this.callbacks.onColorChange(color);
-
-        // Update selection visual
         this.subPanelEl!.querySelectorAll('.rp-color-swatch').forEach((s) => {
           (s as HTMLElement).style.borderColor = 'rgba(255,255,255,0.3)';
           (s as HTMLElement).style.transform = 'scale(1)';
@@ -350,8 +531,6 @@ export class Toolbar {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         this.callbacks.onCropRatioChange(ratio.value);
-
-        // Update active state
         this.subPanelEl!.querySelectorAll('button').forEach((b) => {
           if (!b.classList.contains('rp-crop-action-btn')) {
             (b as HTMLElement).style.background = 'transparent';
@@ -402,5 +581,70 @@ export class Toolbar {
       this.callbacks.onCancelCrop();
     });
     this.subPanelEl!.appendChild(cancelCropBtn);
+  }
+
+  /* ================================================================ */
+  /*  Helpers                                                         */
+  /* ================================================================ */
+
+  private applyBtnStyle(btn: HTMLElement, isGroup = false): void {
+    btn.style.cssText = `
+      min-width: ${isGroup ? '48px' : '40px'};
+      height: 40px;
+      padding: ${isGroup ? '8px 6px' : '8px'};
+      border: none;
+      background: transparent;
+      color: ${this.theme.toolbarIconColor || '#ffffff'};
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+    `;
+  }
+
+  private applyTooltip(el: HTMLElement, text: string): void {
+    el.setAttribute('title', text);
+  }
+
+  private addHoverEffect(btn: HTMLElement): void {
+    btn.addEventListener('mouseenter', () => {
+      const mode = btn.dataset.mode;
+      if (!(mode && this.activeMode === mode)) {
+        btn.style.background = 'rgba(255,255,255,0.1)';
+      }
+    });
+    btn.addEventListener('mouseleave', () => {
+      const mode = btn.dataset.mode;
+      if (!(mode && this.activeMode === mode)) {
+        // Re-check group highlight
+        const isGroupHighlighted = btn.classList.contains('rp-editor-group-btn') &&
+          this.isGroupActive(btn);
+        btn.style.background = isGroupHighlighted
+          ? (this.theme.toolbarActiveIconColor || '#4a90d9')
+          : 'transparent';
+      }
+    });
+  }
+
+  private isGroupActive(groupBtn: HTMLElement): boolean {
+    const wrapper = groupBtn.closest('[data-group-id]');
+    if (!wrapper) return false;
+    const flyout = wrapper.querySelector('.rp-editor-flyout');
+    if (!flyout) return false;
+    return flyout.querySelector(`[data-mode="${this.activeMode}"]`) != null;
+  }
+
+  /** Enable / disable visual state of a tool button by id */
+  private setItemOpacity(toolId: string, enabled: boolean): void {
+    // Search both top-level and flyout buttons
+    const el = this.toolbarEl?.querySelector(`[data-tool-id="${toolId}"]`) as HTMLElement | null;
+    if (el) {
+      el.style.opacity = enabled ? '1' : '0.3';
+      el.style.pointerEvents = enabled ? 'auto' : 'none';
+    }
   }
 }

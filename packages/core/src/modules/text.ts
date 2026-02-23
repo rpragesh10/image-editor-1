@@ -129,10 +129,7 @@ export class TextModule {
       top: pointer.y,
     });
 
+    // Single placement — user must click the text icon again to add another
     this.pendingTextAdd = false;
-    // Stay in text mode — user can click again to add more text
-    setTimeout(() => {
-      this.pendingTextAdd = true;
-    }, 300);
   };
 }

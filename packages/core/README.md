@@ -1,11 +1,11 @@
 # @rageshpikalmunde/rp-image-editor
 
-[![npm version](https://img.shields.io/npm/v/@rageshpikalmunde/rp-image-editor.svg)](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor)
-[![npm downloads](https://img.shields.io/npm/dm/@rageshpikalmunde/rp-image-editor.svg)](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor)
-[![license](https://img.shields.io/npm/l/@rageshpikalmunde/rp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/@rageshpikalmunde/rp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
+[![npm version](https://img.shields.io/npm/v/%40rageshpikalmunde%2Frp-image-editor.svg)](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor)
+[![npm downloads](https://img.shields.io/npm/dt/%40rageshpikalmunde%2Frp-image-editor.svg)](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor)
+[![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, erase annotations, undo/redo — all in a beautiful modal UI. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
 **[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
 
@@ -21,9 +21,12 @@
 | 🔄 **Rotate** | Rotate left (−90°) and right (+90°) |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
 | 🔤 **Add Text** | Inline editing with color and font size |
+| 💬 **Callout** | Label box with draggable tail pointer for annotations |
 | 🧹 **Eraser** | Remove annotations without affecting the image |
 | ↩️ **Undo/Redo** | Configurable stack depth (default: 20) |
 | 🔁 **Reset** | Reset to original image |
+| 🎛️ **Grouped Toolbar** | Clean 7-button toolbar with flyout menus (Zoom, Transform, Annotate) |
+| 🚫 **Disable Features** | Hide individual tools or groups via `disabledFeatures` config |
 | 📱 **HEIC Support** | Auto-converts iPhone HEIC photos to JPEG |
 | 📐 **EXIF Orientation** | Auto-corrects rotated photos |
 | ⚡ **Smart Resolution** | Auto-downscales on iOS to stay within Safari canvas limits |
@@ -158,10 +161,47 @@ interface RpEditorConfig {
   defaultTextFontSize?: number;    // Default: 24
   colorPalette?: string[];
   showToolbar?: boolean;           // Default: true
+  disabledFeatures?: string[];     // Default: [] — see below
   theme?: RpEditorTheme;
   locale?: string;
 }
 ```
+
+## Disabling Features
+
+Hide individual tools or entire groups from the toolbar:
+
+```typescript
+const result = await openEditorModal({
+  image: file,
+  config: {
+    // Hide individual tools
+    disabledFeatures: ['eraser', 'reset'],
+
+    // Or hide entire groups
+    // disabledFeatures: ['zoom', 'transform'],
+  },
+});
+```
+
+**Individual tool names:** `move`, `crop`, `zoomIn`, `zoomOut`, `rotateLeft`, `rotateRight`, `draw`, `text`, `callout`, `eraser`, `undo`, `redo`, `reset`
+
+**Group names** (disables all children): `zoom` (zoomIn + zoomOut), `transform` (rotateLeft + rotateRight), `annotate` (draw + text + callout + eraser)
+
+## Toolbar Layout
+
+The toolbar is organized into 8 compact items with flyout menus:
+
+| Button | Type | Contains |
+|---|---|---|
+| **Move** | Standalone | Pan / drag mode |
+| **Crop** | Standalone | Free & aspect-ratio crop |
+| **Zoom ▾** | Flyout | Zoom In, Zoom Out |
+| **Transform ▾** | Flyout | Rotate Left, Rotate Right |
+| **Annotate ▾** | Flyout | Draw, Text, Callout, Eraser |
+| **Undo** | Standalone | Undo last action |
+| **Redo** | Standalone | Redo last undone action |
+| **Reset** | Standalone | Reset to original image |
 
 ## Theming
 
