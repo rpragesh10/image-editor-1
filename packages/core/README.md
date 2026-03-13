@@ -18,10 +18,11 @@
 | ✂️ **Crop** | Free crop and aspect-ratio locked crop |
 | 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
 | 🖐️ **Pan/Drag** | Drag image inside the viewport |
-| 🔄 **Rotate** | Rotate left (−90°) and right (+90°) |
+| 🔄 **Rotate** | Rotate left/right by 45° steps (lossless cumulative rotation) |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
 | 🔤 **Add Text** | Inline editing with color and font size |
-| 💬 **Callout** | Label box with draggable tail pointer for annotations |
+| 💬 **Callout** | Editable label with draggable tail, min-resize clamping, text constraints (40 chars, word-wrap), mobile double-tap support |
+| 🗑️ **Delete** | Delete selected callout/annotation via toolbar trash button |
 | 🧹 **Eraser** | Remove annotations without affecting the image |
 | ↩️ **Undo/Redo** | Configurable stack depth (default: 20) |
 | 🔁 **Reset** | Reset to original image |

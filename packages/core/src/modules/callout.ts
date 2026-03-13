@@ -6,12 +6,15 @@
  *   1. tailImage  — filled triangle rendered via off-screen canvas
  *   2. bgRect     — colored rounded rectangle behind the text
  *   3. border     — dashed selection border around bgRect
- *   4. label      — fabric.IText so the user can double-click to edit
+ *   4. label      — fabric.IText so the user can click (desktop) or
+ *                   double-tap (mobile) to edit inline
  *   5. anchor     — small draggable circle at the tail tip
  *
  * Moving the rect drags border + label along and redraws the tail.
  * Moving the anchor redraws only the tail.
- * Double-clicking the box enters text editing mode.
+ * Text constraints (max 40 chars, word-wrap at ~15 chars) are enforced
+ * when the user finishes editing.
+ * The box cannot be resized smaller than the label's natural size + minimum padding.
  */
 import { fabric } from 'fabric';
 
@@ -24,10 +27,15 @@ export interface CalloutOptions {
   top?: number;
   anchorLeft?: number;
   anchorTop?: number;
+  /** Maximum characters allowed in a callout label (default 40) */
+  maxChars?: number;
+  /** Character position around which to insert a line-break (default 15) */
+  lineBreakAt?: number;
 }
 
 /** Internal bookkeeping for one callout on the canvas */
 interface CalloutHandle {
+  calloutId: number;
   bgRect: fabric.Rect;
   border: fabric.Rect;
   label: fabric.IText;
@@ -37,6 +45,10 @@ interface CalloutHandle {
   color: string;
   paddingH: number;
   paddingV: number;
+  /** Intrinsic (unscaled) label width — cached to avoid floating-point drift */
+  labelNaturalW: number;
+  /** Intrinsic (unscaled) label height */
+  labelNaturalH: number;
 }
 
 export class CalloutModule {
@@ -47,6 +59,12 @@ export class CalloutModule {
   private calloutTextColor = '#ffffff';
   private fontSize = 20;
   private callouts: CalloutHandle[] = [];
+  private calloutCounter = 0;
+
+  /** Max characters allowed in a callout label */
+  private readonly CALLOUT_MAX_CHARS = 40;
+  /** Character position around which to insert a line-break */
+  private readonly CALLOUT_LINE_BREAK_AT = 15;
 
   constructor(canvas: fabric.Canvas) {
     this.canvas = canvas;
@@ -85,21 +103,101 @@ export class CalloutModule {
     return this.isActive;
   }
 
+  /** Returns the number of callouts currently on the canvas */
+  getCalloutCount(): number {
+    return this.callouts.length;
+  }
+
+  /**
+   * Delete the currently selected callout (if any).
+   * Removes all 5 fabric objects belonging to that callout.
+   * Returns true if something was deleted.
+   */
+  deleteSelected(): boolean {
+    const activeObj = this.canvas.getActiveObject() as any;
+    if (!activeObj) return false;
+
+    const idsToRemove = new Set<number>();
+
+    if (activeObj.type === 'activeSelection') {
+      (activeObj as fabric.ActiveSelection).forEachObject((obj: any) => {
+        if (obj.calloutId != null) idsToRemove.add(obj.calloutId);
+        else this.canvas.remove(obj);
+      });
+    } else {
+      if (activeObj.calloutId != null) {
+        idsToRemove.add(activeObj.calloutId);
+      } else {
+        // Not a callout object — remove directly (e.g. a draw path)
+        this.canvas.remove(activeObj);
+        this.canvas.discardActiveObject();
+        this.canvas.requestRenderAll();
+        return true;
+      }
+    }
+
+    if (idsToRemove.size > 0) {
+      const allObjects = this.canvas.getObjects() as any[];
+      const toRemove = allObjects.filter((o: any) => idsToRemove.has(o.calloutId));
+      toRemove.forEach((o) => this.canvas.remove(o));
+      this.callouts = this.callouts.filter((h) => !idsToRemove.has(h.calloutId));
+    }
+
+    this.canvas.discardActiveObject();
+    this.canvas.requestRenderAll();
+    return idsToRemove.size > 0;
+  }
+
+  /**
+   * Hide all callout borders and anchors (call before export).
+   */
+  hideAllControls(): void {
+    for (const h of this.callouts) {
+      h.border.set({ visible: false });
+      h.anchor.set({ visible: false });
+    }
+  }
+
+  /**
+   * Show borders and anchors only for currently-selected callouts.
+   * Call after export to restore interactive state.
+   */
+  showAllControls(): void {
+    const active = this.canvas.getActiveObject() as any;
+    for (const h of this.callouts) {
+      const isSelected =
+        active &&
+        (active === h.bgRect ||
+          active === h.label ||
+          active === h.anchor ||
+          active.calloutId === h.calloutId);
+      h.border.set({ visible: !!isSelected });
+      h.anchor.set({ visible: !!isSelected });
+    }
+  }
+
   /* ═══════════════════ addCallout ═══════════════════ */
 
   addCallout(opts?: CalloutOptions): void {
     const color = opts?.color || this.calloutColor;
     const textColor = opts?.textColor || this.calloutTextColor;
     const fontSize = opts?.fontSize || this.fontSize;
-    const labelText = opts?.text || 'Label';
+    const rawText = opts?.text || 'Label';
+    const labelText = this.formatCalloutText(
+      rawText,
+      opts?.maxChars,
+      opts?.lineBreakAt,
+    );
 
-    const paddingH = 14;
-    const paddingV = 8;
+    const id = ++this.calloutCounter;
+    const paddingH = 22;
+    const paddingV = 14;
 
     // ── 1. Editable label (IText) — measure first ──
     const label = new fabric.IText(labelText, {
       fontSize,
       fontFamily: 'Arial, Helvetica, sans-serif',
+      fontWeight: '600',
       fill: textColor,
       originX: 'left',
       originY: 'top',
@@ -110,6 +208,10 @@ export class CalloutModule {
       editable: true,
       padding: 0,
     });
+    (label as any)._rpAnnotation = true;
+    (label as any)._rpType = 'callout-label';
+    (label as any).calloutId = id;
+    (label as any).calloutRole = 'label';
 
     const textW = label.getScaledWidth();
     const textH = label.getScaledHeight();
@@ -127,23 +229,31 @@ export class CalloutModule {
       width: rectW,
       height: rectH,
       fill: color,
-      rx: 4,
-      ry: 4,
+      rx: 8,
+      ry: 8,
       originX: 'left',
       originY: 'top',
       selectable: true,
       evented: true,
       hasControls: true,
       hasBorders: false,
-      cornerColor: '#4a90d9',
+      cornerColor: '#0ea5e9',
       cornerStyle: 'circle',
       cornerSize: 8,
       transparentCorners: false,
       lockRotation: true,
       hoverCursor: 'move',
+      shadow: new fabric.Shadow({
+        color: 'rgba(0,0,0,0.25)',
+        blur: 8,
+        offsetX: 0,
+        offsetY: 4,
+      }),
     });
     (bgRect as any)._rpAnnotation = true;
     (bgRect as any)._rpType = 'callout-box';
+    (bgRect as any).calloutId = id;
+    (bgRect as any).calloutRole = 'bgRect';
 
     // ── 3. Dashed border ──
     const borderPad = 3;
@@ -162,17 +272,18 @@ export class CalloutModule {
       originY: 'top',
       selectable: false,
       evented: false,
+      visible: false,
     });
     (border as any)._rpAnnotation = true;
     (border as any)._rpType = 'callout-border';
+    (border as any).calloutId = id;
+    (border as any).calloutRole = 'border';
 
     // Position the label inside the rect
     label.set({
       left: boxLeft + paddingH,
       top: boxTop + paddingV,
     });
-    (label as any)._rpAnnotation = true;
-    (label as any)._rpType = 'callout-label';
 
     // ── 4. Anchor (tail tip) ──
     const anchorLeft = opts?.anchorLeft ?? boxLeft + rectW * 0.3;
@@ -180,7 +291,7 @@ export class CalloutModule {
 
     const anchor = new fabric.Circle({
       radius: 7,
-      fill: '#4a90d9',
+      fill: '#0ea5e9',
       stroke: '#ffffff',
       strokeWidth: 2,
       left: anchorLeft,
@@ -192,9 +303,12 @@ export class CalloutModule {
       hasControls: false,
       hasBorders: false,
       hoverCursor: 'move',
+      visible: false,
     });
     (anchor as any)._rpAnnotation = true;
     (anchor as any)._rpType = 'callout-anchor';
+    (anchor as any).calloutId = id;
+    (anchor as any).calloutRole = 'anchor';
 
     // ── 5. Tail — off-screen canvas rendered as fabric.Image ──
     const tailCanvas = document.createElement('canvas');
@@ -211,12 +325,23 @@ export class CalloutModule {
     });
     (tailImage as any)._rpAnnotation = true;
     (tailImage as any)._rpType = 'callout-tail';
+    (tailImage as any).calloutId = id;
+    (tailImage as any).calloutRole = 'tail';
 
     // ── Build handle ──
     const handle: CalloutHandle = {
-      bgRect, border, label, anchor,
-      tailCanvas, tailImage,
-      color, paddingH, paddingV,
+      calloutId: id,
+      bgRect,
+      border,
+      label,
+      anchor,
+      tailCanvas,
+      tailImage,
+      color,
+      paddingH,
+      paddingV,
+      labelNaturalW: textW,
+      labelNaturalH: textH,
     };
     this.callouts.push(handle);
 
@@ -239,6 +364,7 @@ export class CalloutModule {
     });
 
     bgRect.on('scaling', () => {
+      this.clampBoxSize(handle);
       this.syncBoxParts(handle);
       this.redrawTail(handle);
     });
@@ -248,17 +374,34 @@ export class CalloutModule {
       this.redrawTail(handle);
     });
 
+    // Live resize while user is typing
     label.on('changed', () => {
       this.resizeBoxToFitLabel(handle);
       this.redrawTail(handle);
     });
 
-    // Double-click on box → enter text editing
+    // ── Text editing triggers ──
+
+    // Desktop: double-click on bgRect → focus label and enter editing
     bgRect.on('mousedblclick', () => {
-      this.canvas.setActiveObject(label);
-      label.enterEditing();
-      label.selectAll();
-      this.canvas.renderAll();
+      this.enterLabelEditing(handle);
+    });
+
+    // Mobile: double-tap detection on bgRect (touchend doesn't fire dblclick)
+    let lastTapTime = 0;
+    bgRect.on('mousedown', () => {
+      const now = Date.now();
+      if (now - lastTapTime < 350) {
+        this.enterLabelEditing(handle);
+        lastTapTime = 0;
+      } else {
+        lastTapTime = now;
+      }
+    });
+
+    // When the user finishes editing, enforce text constraints
+    label.on('editing:exited', () => {
+      this.onLabelEditingExited(handle);
     });
 
     // Show/hide border + anchor based on selection
@@ -278,10 +421,7 @@ export class CalloutModule {
     anchor.on('selected', showControls);
 
     bgRect.on('deselected', hideControls);
-    label.on('deselected', hideControls);
-    label.on('editing:exited', () => {
-      this.resizeBoxToFitLabel(handle);
-      this.redrawTail(handle);
+    label.on('deselected', () => {
       // Hide controls after a short delay to allow re-selection
       setTimeout(() => {
         const active = this.canvas.getActiveObject();
@@ -300,16 +440,141 @@ export class CalloutModule {
       }, 100);
     });
 
-    // Auto-focus label for editing so user can immediately type
+    // Auto-show controls and select the rect
     border.set({ visible: true });
     anchor.set({ visible: true });
-    this.canvas.setActiveObject(label);
-    label.enterEditing();
-    label.selectAll();
+    this.canvas.setActiveObject(bgRect);
     this.canvas.renderAll();
   }
 
-  /* ═══════════════ private helpers ═══════════════════ */
+  /* ═══════════════ text constraint helpers ═══════════════ */
+
+  /**
+   * Truncate text to a maximum length, adding ellipsis if truncated.
+   */
+  private constrainText(text: string, max = this.CALLOUT_MAX_CHARS): string {
+    if (!text) return text;
+    text = text.replace(/\n/g, ' '); // flatten any existing newlines
+    if (text.length <= max) return text;
+    return text.substring(0, max - 3) + '...';
+  }
+
+  /**
+   * Insert a line-break (\n) near `breakAt` at the closest word boundary
+   * so `fabric.IText` renders a compact two-line label.
+   */
+  private wrapText(text: string, breakAt = this.CALLOUT_LINE_BREAK_AT): string {
+    if (!text || text.length <= breakAt) return text;
+    // Already contains a manual line-break — leave as-is
+    if (text.includes('\n')) return text;
+
+    // Scan backwards from breakAt to find the nearest space
+    let splitPos = -1;
+    for (let i = breakAt; i >= 0; i--) {
+      if (text[i] === ' ') {
+        splitPos = i;
+        break;
+      }
+    }
+    // If no space found before breakAt, scan forward
+    if (splitPos === -1) {
+      for (let i = breakAt + 1; i < text.length; i++) {
+        if (text[i] === ' ') {
+          splitPos = i;
+          break;
+        }
+      }
+    }
+    // Still no space — force break at breakAt
+    if (splitPos === -1) splitPos = breakAt;
+
+    return text.substring(0, splitPos).trim() + '\n' + text.substring(splitPos).trim();
+  }
+
+  /** Constrain + word-wrap a callout label in one step */
+  private formatCalloutText(
+    text: string,
+    maxChars?: number,
+    lineBreakAt?: number,
+  ): string {
+    return this.wrapText(
+      this.constrainText(text, maxChars ?? this.CALLOUT_MAX_CHARS),
+      lineBreakAt ?? this.CALLOUT_LINE_BREAK_AT,
+    );
+  }
+
+  /* ═══════════════ editing helpers ═══════════════════ */
+
+  /** Focus the label IText and enter inline editing mode */
+  private enterLabelEditing(h: CalloutHandle): void {
+    // Temporarily make the label interactive so it can be focused
+    h.label.selectable = true;
+    h.label.evented = true;
+    this.canvas.setActiveObject(h.label);
+    h.label.enterEditing();
+    h.label.selectAll();
+    this.canvas.renderAll();
+  }
+
+  /** Called when the user finishes editing — enforce constraints, resize, re-lock label */
+  private onLabelEditingExited(h: CalloutHandle): void {
+    const raw = h.label.text || '';
+    const formatted = this.formatCalloutText(raw);
+
+    // Apply constrained text back (may differ from what user typed)
+    if (formatted !== raw) {
+      h.label.set({ text: formatted });
+    }
+
+    // Reset label scale to 1 so natural dimensions are correct
+    h.label.set({ scaleX: 1, scaleY: 1 });
+
+    // Update cached intrinsic dimensions
+    h.labelNaturalW = h.label.getScaledWidth();
+    h.labelNaturalH = h.label.getScaledHeight();
+
+    // Resize box to fit new text
+    this.resizeBoxToFitLabel(h);
+    this.redrawTail(h);
+
+    // Lock label again — it should only be interactable via bgRect selection
+    h.label.selectable = false;
+    h.label.evented = false;
+
+    // Hide controls after a short delay to allow re-selection of bgRect
+    setTimeout(() => {
+      const active = this.canvas.getActiveObject();
+      if (active !== h.bgRect && active !== h.label && active !== h.anchor) {
+        h.border.set({ visible: false });
+        h.anchor.set({ visible: false });
+        this.canvas.renderAll();
+      }
+    }, 100);
+  }
+
+  /* ═══════════════ private geometry helpers ═══════════════════ */
+
+  /** Prevent the box from being resized smaller than the label's natural size + minimum padding */
+  private clampBoxSize(h: CalloutHandle): void {
+    const { bgRect } = h;
+    const minPadH = 14;
+    const minPadV = 8;
+    const minW = h.labelNaturalW + minPadH * 2;
+    const minH = h.labelNaturalH + minPadV * 2;
+
+    const sx = bgRect.scaleX || 1;
+    const sy = bgRect.scaleY || 1;
+    const currentW = (bgRect.width || 0) * sx;
+    const currentH = (bgRect.height || 0) * sy;
+
+    if (currentW < minW) {
+      bgRect.set({ scaleX: minW / (bgRect.width || 1) });
+    }
+    if (currentH < minH) {
+      bgRect.set({ scaleY: minH / (bgRect.height || 1) });
+    }
+    bgRect.setCoords();
+  }
 
   /** Keep border + label in sync with bgRect position/size */
   private syncBoxParts(h: CalloutHandle): void {
@@ -332,11 +597,25 @@ export class CalloutModule {
     });
     border.setCoords();
 
+    // Use stored intrinsic dimensions so repeated scaling never drifts.
+    const naturalW = h.labelNaturalW;
+    const naturalH = h.labelNaturalH;
+    const availW = rw - paddingH * 2;
+    const availH = rh - paddingV * 2;
+    // Clamp so the font never shrinks below its base size (scale >= 1)
+    const uniformScale = Math.max(
+      1,
+      Math.min(availW / (naturalW || 1), availH / (naturalH || 1)),
+    );
+
+    // Center the label inside the box
+    const scaledTextW = naturalW * uniformScale;
+    const scaledTextH = naturalH * uniformScale;
     label.set({
-      left: bLeft + paddingH * sx,
-      top: bTop + paddingV * sy,
-      scaleX: sx,
-      scaleY: sy,
+      left: bLeft + (rw - scaledTextW) / 2,
+      top: bTop + (rh - scaledTextH) / 2,
+      scaleX: uniformScale,
+      scaleY: uniformScale,
     });
     label.setCoords();
   }
@@ -376,6 +655,7 @@ export class CalloutModule {
    * Redraw the tail triangle from the rect edge to the anchor point.
    * Uses ray-rect intersection so the tail exits from the correct edge
    * regardless of where the anchor is (below, above, left, right).
+   * The base is pulled slightly inside the box to eliminate the visual gap.
    */
   private redrawTail(h: CalloutHandle): void {
     const { bgRect, anchor, tailCanvas, tailImage, color } = h;
@@ -421,17 +701,29 @@ export class CalloutModule {
     // Perpendicular for the base width
     const perpX = -dy / dist;
     const perpY = dx / dist;
-    const baseHalf = Math.min(rw * 0.12, 14);
+    const baseHalf = Math.min(Math.max(rw * 0.15, 10), 16);
 
     // Where the tail exits the rect edge
     const edgePoint = this.rayRectIntersection(
-      boxCX, boxCY, dx, dy, bLeft, bTop, rw, rh
+      boxCX,
+      boxCY,
+      dx,
+      dy,
+      bLeft,
+      bTop,
+      rw,
+      rh,
     );
 
-    const base1X = edgePoint.x + perpX * baseHalf;
-    const base1Y = edgePoint.y + perpY * baseHalf;
-    const base2X = edgePoint.x - perpX * baseHalf;
-    const base2Y = edgePoint.y - perpY * baseHalf;
+    // Move base slightly INSIDE the box to avoid visual gap
+    const overlap = 25;
+    const baseEdgeX = edgePoint.x - (dx / dist) * overlap;
+    const baseEdgeY = edgePoint.y - (dy / dist) * overlap;
+
+    const base1X = baseEdgeX + perpX * baseHalf;
+    const base1Y = baseEdgeY + perpY * baseHalf;
+    const base2X = baseEdgeX - perpX * baseHalf;
+    const base2Y = baseEdgeY - perpY * baseHalf;
 
     // Draw the filled triangle
     ctx.beginPath();
@@ -440,15 +732,17 @@ export class CalloutModule {
     ctx.lineTo(aX, aY);
     ctx.closePath();
     ctx.fillStyle = color;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.fill();
 
     tailImage.setElement(tailCanvas as any);
     tailImage.set({ dirty: true });
 
     // Z-order: tail behind box parts, base image behind everything
-    tailImage.sendToBack();
+    this.canvas.sendToBack(tailImage);
     const baseImg = this.canvas.getObjects().find((o: any) => o._rpBaseImage);
-    if (baseImg) baseImg.sendToBack();
+    if (baseImg) this.canvas.sendToBack(baseImg);
 
     this.canvas.renderAll();
   }
@@ -457,27 +751,36 @@ export class CalloutModule {
    * Find where a ray from (ox,oy) in direction (dx,dy) exits the rect.
    */
   private rayRectIntersection(
-    ox: number, oy: number,
-    dx: number, dy: number,
-    rx: number, ry: number,
-    rw: number, rh: number
+    ox: number,
+    oy: number,
+    dx: number,
+    dy: number,
+    rx: number,
+    ry: number,
+    rw: number,
+    rh: number,
   ): { x: number; y: number } {
     let tMin = Infinity;
     let hitX = ox;
     let hitY = oy;
 
     const checks = [
-      { t: dy !== 0 ? (ry - oy) / dy : Infinity },           // top
-      { t: dy !== 0 ? (ry + rh - oy) / dy : Infinity },      // bottom
-      { t: dx !== 0 ? (rx - ox) / dx : Infinity },            // left
-      { t: dx !== 0 ? (rx + rw - ox) / dx : Infinity },       // right
+      { t: dy !== 0 ? (ry - oy) / dy : Infinity }, // top
+      { t: dy !== 0 ? (ry + rh - oy) / dy : Infinity }, // bottom
+      { t: dx !== 0 ? (rx - ox) / dx : Infinity }, // left
+      { t: dx !== 0 ? (rx + rw - ox) / dx : Infinity }, // right
     ];
 
     for (const c of checks) {
       if (c.t > 0.001 && c.t < tMin) {
         const px = ox + dx * c.t;
         const py = oy + dy * c.t;
-        if (px >= rx - 1 && px <= rx + rw + 1 && py >= ry - 1 && py <= ry + rh + 1) {
+        if (
+          px >= rx - 1 &&
+          px <= rx + rw + 1 &&
+          py >= ry - 1 &&
+          py <= ry + rh + 1
+        ) {
           tMin = c.t;
           hitX = px;
           hitY = py;

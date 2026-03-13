@@ -53,6 +53,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   // Touch gesture state
   private lastPinchDistance = 0;
 
+  // Cumulative rotation angle (always rotate from original to avoid progressive shrinking)
+  private cumulativeRotation = 0;
+
   constructor(container: HTMLElement, config?: Partial<RpEditorConfig>) {
     super();
     this.container = container;
@@ -178,14 +181,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * Rotate left (−90°)
    */
   async rotateLeft(): Promise<void> {
-    await this.rotate(-90);
+    await this.rotate(-45);
   }
 
   /**
    * Rotate right (+90°)
    */
   async rotateRight(): Promise<void> {
-    await this.rotate(90);
+    await this.rotate(45);
   }
 
   /**
@@ -215,9 +218,22 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.clear();
     await this.loadImageOntoCanvas(dataUrl);
     this.zoomLevel = 1;
+    this.cumulativeRotation = 0;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.historyModule?.initialize();
     this.setMode('move');
+  }
+
+  /**
+   * Delete the currently selected annotation (callout or other).
+   * Returns true if something was deleted.
+   */
+  deleteSelectedAnnotation(): boolean {
+    const deleted = this.calloutModule?.deleteSelected() ?? false;
+    if (deleted) {
+      this.historyModule?.saveState();
+    }
+    return deleted;
   }
 
   /**
@@ -246,6 +262,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     // Deactivate current mode to clean up overlays
     this.deactivateCurrentMode();
+
+    // Hide callout borders/anchors before export
+    this.calloutModule?.hideAllControls();
+    this.fabricCanvas.discardActiveObject();
+    this.fabricCanvas.renderAll();
 
     const format = this.config.exportFormat;
     const quality = this.config.exportQuality;
@@ -351,6 +372,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.fabricCanvas.setViewportTransform(currentVPT);
     }
     this.fabricCanvas.setZoom(currentZoom);
+
+    // Restore callout controls (only for selected callouts)
+    this.calloutModule?.showAllControls();
     this.fabricCanvas.renderAll();
 
     const result: RpEditorResult = {
@@ -566,7 +590,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     // Listen for callout / annotation additions
     this.fabricCanvas.on('object:added', (e: any) => {
-      if (e.target?._rpType === 'callout') {
+      if (e.target?._rpType?.startsWith('callout')) {
         this.historyModule?.saveState();
       }
     });
@@ -604,6 +628,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         this.cropModule?.deactivate();
         this.setMode('move');
       },
+      onDeleteAnnotation: () => this.deleteSelectedAnnotation(),
     };
 
     this.toolbar = new Toolbar(
@@ -659,59 +684,47 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   }
 
   private async rotate(degrees: number): Promise<void> {
-    if (!this.fabricCanvas) return;
+    if (!this.fabricCanvas || !this.originalImageBlob) return;
 
-    // Export current state to a flat image (image region only, no background)
+    // Accumulate rotation — always rotate from the original image so
+    // repeated rotations never cause progressive quality/size loss.
+    this.cumulativeRotation = ((this.cumulativeRotation + degrees) % 360 + 360) % 360;
+
     this.deactivateCurrentMode();
-    this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    this.fabricCanvas.setZoom(1);
 
-    // Temporarily strip background so it's not baked in
-    const savedBg = this.fabricCanvas.backgroundColor;
-    this.fabricCanvas.backgroundColor = 'transparent';
+    // Process original image (HEIC conversion, EXIF correction, downscale)
+    const { dataUrl } = await processImage(this.originalImageBlob, this.config.maxResolution);
 
-    // Crop to image region only (exclude any canvas padding)
-    let cropLeft = 0;
-    let cropTop = 0;
-    let cropW = this.fabricCanvas.getWidth();
-    let cropH = this.fabricCanvas.getHeight();
-    if (this.baseImage) {
-      cropLeft = (this.baseImage as any).left || 0;
-      cropTop = (this.baseImage as any).top || 0;
-      const sx = (this.baseImage as any).scaleX || 1;
-      const sy = (this.baseImage as any).scaleY || 1;
-      cropW = (this.baseImage.width || cropW) * sx;
-      cropH = (this.baseImage.height || cropH) * sy;
+    if (this.cumulativeRotation === 0) {
+      // Full circle — just reload the original
+      this.fabricCanvas.clear();
+      this.fabricCanvas.backgroundColor = 'transparent';
+      await this.loadImageOntoCanvas(dataUrl);
+    } else {
+      // Rotate from original by the cumulative angle
+      const img = await this.loadHtmlImage(dataUrl);
+      const rotCanvas = document.createElement('canvas');
+
+      const radians = (this.cumulativeRotation * Math.PI) / 180;
+      const absCos = Math.abs(Math.cos(radians));
+      const absSin = Math.abs(Math.sin(radians));
+      rotCanvas.width = Math.ceil(img.width * absCos + img.height * absSin);
+      rotCanvas.height = Math.ceil(img.width * absSin + img.height * absCos);
+
+      const ctx = rotCanvas.getContext('2d')!;
+      ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+      ctx.rotate(radians);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const rotatedDataUrl = rotCanvas.toDataURL('image/png');
+      rotCanvas.width = 1;
+      rotCanvas.height = 1;
+
+      this.fabricCanvas.clear();
+      this.fabricCanvas.backgroundColor = 'transparent';
+      await this.loadImageOntoCanvas(rotatedDataUrl);
     }
-    const dataUrl = this.fabricCanvas.toDataURL({
-      format: 'png',
-      left: cropLeft,
-      top: cropTop,
-      width: cropW,
-      height: cropH,
-    });
-    this.fabricCanvas.backgroundColor = savedBg;
 
-    // Load the flattened image, rotate, and reload
-    const img = await this.loadHtmlImage(dataUrl);
-    const rotCanvas = document.createElement('canvas');
-    const isSwap = Math.abs(degrees) === 90 || Math.abs(degrees) === 270;
-
-    rotCanvas.width = isSwap ? img.height : img.width;
-    rotCanvas.height = isSwap ? img.width : img.height;
-    const ctx = rotCanvas.getContext('2d')!;
-    ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
-    ctx.rotate((degrees * Math.PI) / 180);
-    ctx.drawImage(img, -img.width / 2, -img.height / 2);
-
-    const rotatedDataUrl = rotCanvas.toDataURL('image/png');
-    rotCanvas.width = 1;
-    rotCanvas.height = 1;
-
-    // Reload — canvas will be resized to new rotated image dimensions
-    this.fabricCanvas.clear();
-    this.fabricCanvas.backgroundColor = 'transparent';
-    await this.loadImageOntoCanvas(rotatedDataUrl);
     this.zoomLevel = 1;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 

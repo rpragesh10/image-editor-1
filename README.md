@@ -9,9 +9,10 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 - **Free crop** and aspect-ratio locked crop
 - **Zoom in/out** with pinch-to-zoom gesture support
 - **Drag/pan** image inside the viewport
-- **Rotate** left (−90°) and right (+90°)
+- **Rotate** left/right in 45° steps (lossless cumulative rotation from original)
 - **Freehand draw** with configurable brush color & width
 - **Add text** with inline editing, color, and font size
+- **Callout annotations** — editable label box with draggable tail pointer, min-resize clamping, text constraints (max 40 chars, auto word-wrap), mobile double-tap editing, and delete button
 - **Eraser** tool for removing annotations
 - **Undo/Redo** with configurable stack depth
 - **Reset** to original image

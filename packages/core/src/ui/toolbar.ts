@@ -18,6 +18,7 @@ export interface ToolbarCallbacks {
   onCropRatioChange: (ratio: number | null) => void;
   onApplyCrop: () => void;
   onCancelCrop: () => void;
+  onDeleteAnnotation?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -448,6 +449,9 @@ export class Toolbar {
 
     if (this.activeMode === 'draw' || this.activeMode === 'text' || this.activeMode === 'callout') {
       this.showColorPicker();
+      if (this.activeMode === 'callout') {
+        this.showDeleteButton();
+      }
     } else if (this.activeMode === 'crop') {
       this.showCropRatioSelector();
     }
@@ -508,6 +512,49 @@ export class Toolbar {
       });
       this.subPanelEl.appendChild(slider);
     }
+  }
+
+  /** Show a delete (trash) button in the sub-panel — used for callout mode */
+  private showDeleteButton(): void {
+    if (!this.subPanelEl) return;
+
+    const separator = document.createElement('div');
+    separator.style.cssText = 'width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 8px;';
+    this.subPanelEl.appendChild(separator);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'rp-delete-annotation-btn';
+    deleteBtn.innerHTML = (ICONS as any).delete || '';
+    deleteBtn.setAttribute('title', 'Delete selected');
+    deleteBtn.querySelector('svg')?.setAttribute('width', '20');
+    deleteBtn.querySelector('svg')?.setAttribute('height', '20');
+    deleteBtn.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(255,255,255,0.3);
+      background: rgba(239,68,68,0.15);
+      color: #ef4444;
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    `;
+    deleteBtn.addEventListener('mouseenter', () => {
+      deleteBtn.style.background = 'rgba(239,68,68,0.35)';
+    });
+    deleteBtn.addEventListener('mouseleave', () => {
+      deleteBtn.style.background = 'rgba(239,68,68,0.15)';
+    });
+    deleteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.callbacks.onDeleteAnnotation?.();
+    });
+    this.subPanelEl.appendChild(deleteBtn);
   }
 
   private showCropRatioSelector(): void {
