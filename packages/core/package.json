@@ -83,6 +83,9 @@
   ],
   "author": "Ragesh Pikalmunde",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/rpragesh/image-editor.git",
