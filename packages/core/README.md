@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. Annotations are preserved across crop, and exports run at the image's native resolution by default. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
 **[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
 
@@ -15,18 +15,20 @@
 
 | Feature | Description |
 |---|---|
-| ✂️ **Crop** | Free crop and aspect-ratio locked crop |
+| ✂️ **Crop** | Free crop and aspect-ratio locked crop — annotations are preserved across crops |
 | 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
 | 🖐️ **Pan/Drag** | Drag image inside the viewport |
 | 🔄 **Rotate** | Rotate left/right by 45° steps (lossless cumulative rotation) |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
 | 🔤 **Add Text** | Inline editing with color and font size |
+| ⭕ **Shapes** | Circle, Ellipse, Square and Arrow primitives with resize handles. Circle/Square stay proportional, Ellipse resizes freely, Arrow has draggable start/end endpoints |
 | 💬 **Callout** | Editable label with draggable tail, min-resize clamping, text constraints (40 chars, word-wrap), mobile double-tap support |
 | 🗑️ **Delete** | Delete selected callout/annotation via toolbar trash button |
 | 🧹 **Eraser** | Remove annotations without affecting the image |
 | ↩️ **Undo/Redo** | Configurable stack depth (default: 20) |
 | 🔁 **Reset** | Reset to original image |
-| 🎛️ **Grouped Toolbar** | Clean 7-button toolbar with flyout menus (Zoom, Transform, Annotate) |
+| 🎯 **Native-resolution export** | Output preserves the source image's intrinsic resolution; annotations stay sharp |
+| 🎛️ **Grouped Toolbar** | Compact toolbar with flyout menus (Zoom, Transform, Annotate, Shapes) |
 | 🚫 **Disable Features** | Hide individual tools or groups via `disabledFeatures` config |
 | 📱 **HEIC Support** | Auto-converts iPhone HEIC photos to JPEG |
 | 📐 **EXIF Orientation** | Auto-corrects rotated photos |
@@ -155,11 +157,14 @@ interface RpEditorConfig {
   exportFormat?: 'png' | 'jpeg';   // Default: 'jpeg'
   exportQuality?: number;          // 0.0–1.0, Default: 0.92
   exportPixelRatio?: number;       // 1 = standard, 2 = retina. Default: 1
+  exportAtNativeResolution?: boolean; // Render export at the source image's native resolution. Default: true
   maxUndoSteps?: number;           // Default: 20
   defaultBrushColor?: string;      // Default: '#ff0000'
   defaultBrushWidth?: number;      // Default: 3
   defaultTextColor?: string;       // Default: '#ff0000'
   defaultTextFontSize?: number;    // Default: 24
+  defaultShapeColor?: string;      // Default: matches defaultBrushColor
+  defaultShapeStrokeWidth?: number; // Default: 3
   colorPalette?: string[];
   showToolbar?: boolean;           // Default: true
   disabledFeatures?: string[];     // Default: [] — see below
@@ -185,13 +190,13 @@ const result = await openEditorModal({
 });
 ```
 
-**Individual tool names:** `move`, `crop`, `zoomIn`, `zoomOut`, `rotateLeft`, `rotateRight`, `draw`, `text`, `callout`, `eraser`, `undo`, `redo`, `reset`
+**Individual tool names:** `move`, `crop`, `zoomIn`, `zoomOut`, `rotateLeft`, `rotateRight`, `draw`, `text`, `callout`, `eraser`, `shape-circle`, `shape-ellipse`, `shape-square`, `shape-arrow`, `undo`, `redo`, `reset`
 
-**Group names** (disables all children): `zoom` (zoomIn + zoomOut), `transform` (rotateLeft + rotateRight), `annotate` (draw + text + callout + eraser)
+**Group names** (disables all children): `zoom` (zoomIn + zoomOut), `transform` (rotateLeft + rotateRight), `annotate` (draw + text + callout + eraser), `shapes` (shape-circle + shape-ellipse + shape-square + shape-arrow)
 
 ## Toolbar Layout
 
-The toolbar is organized into 8 compact items with flyout menus:
+The toolbar is organized into compact items with flyout menus:
 
 | Button | Type | Contains |
 |---|---|---|
@@ -200,6 +205,7 @@ The toolbar is organized into 8 compact items with flyout menus:
 | **Zoom ▾** | Flyout | Zoom In, Zoom Out |
 | **Transform ▾** | Flyout | Rotate Left, Rotate Right |
 | **Annotate ▾** | Flyout | Draw, Text, Callout, Eraser |
+| **Shapes ▾** | Flyout | Circle, Ellipse, Square, Arrow |
 | **Undo** | Standalone | Undo last action |
 | **Redo** | Standalone | Redo last undone action |
 | **Reset** | Standalone | Reset to original image |

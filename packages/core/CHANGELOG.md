@@ -2,6 +2,35 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.1.0] — 2026-06-09
+
+### Added
+- **Predefined shape tools** — new "Shapes" flyout group in the toolbar with four primitives:
+  - **Circle** — perfect circle, proportion locked (uniform scaling only)
+  - **Ellipse** — independent width/height with full side + corner handles
+  - **Square** — perfect square, proportion locked (uniform scaling only)
+  - **Arrow** — line with arrowhead. Custom Fabric subclass (`rpArrow`) with two dedicated endpoint handles so the user can drag either tip to change length, direction, or start/end position. The whole arrow is also draggable to reposition.
+- All shapes are stored as editable Fabric objects (`_rpAnnotation`, `_rpShapeType`) — they participate in undo/redo, the eraser tool, the color picker, the size slider, and the delete button.
+- Drag-to-draw gesture for every shape; shapes show resize handles immediately on release.
+- New `EditorMode` values: `shape-circle`, `shape-ellipse`, `shape-square`, `shape-arrow`.
+- New exported type: `ShapeType` (`'circle' | 'ellipse' | 'square' | 'arrow'`).
+- New config options:
+  - `defaultShapeColor` — default stroke color for shapes (defaults to `defaultBrushColor`).
+  - `defaultShapeStrokeWidth` — default stroke width for shapes (default `3`).
+  - `exportAtNativeResolution` — when `true` (default), the exported image is rendered at the source image's intrinsic resolution. Annotations are scaled up to match, so cropping or shape annotations no longer reduce output resolution.
+- **Annotations preserved across crop** — applying a crop no longer wipes drawings, text, shapes, or callouts. Existing annotations are translated and rescaled to match the new cropped image and stay aligned. Users can now crop as many times as they like without losing their work.
+- New `CalloutModule.refreshAllTails()` API — refreshes the off-screen tail bitmaps after canvas resize (called automatically after crop).
+
+### Changed
+- `getResult()` export now defaults to native resolution. Previously the export size matched the on-screen canvas (which is downscaled to fit the editor wrapper); pass `exportAtNativeResolution: false` to restore the legacy behaviour.
+- `CropModule.applyCrop()` now also returns `cropRectCanvas` and `oldDisplayScaleX/Y` so callers can reposition annotations across the crop transform.
+- History serialization includes `_rpShapeType`, `x1`, `y1`, `x2`, `y2`, and `arrowheadSize` so shape annotations (especially arrows) round-trip cleanly through undo/redo.
+- Brush-width slider in the sub-panel is now also shown for the shape tools so the user can adjust stroke thickness.
+- Build script (`scripts/build-demo.js`) now mirrors the bundle into both `docs/` and `demo/` so local serving always picks up the latest build.
+
+### Fixed
+- Image resolution loss on export — adding shape/arrow/text annotations no longer downscales the exported image. The output now matches the source image's native dimensions (subject to `maxResolution` clamping during load).
+
 ## [1.0.5] — 2026-03-13
 
 ### Added

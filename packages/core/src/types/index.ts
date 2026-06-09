@@ -17,6 +17,18 @@ export interface RpEditorConfig {
   /** Export pixel ratio. 1 = standard, 2 = retina. Default: 1 */
   exportPixelRatio?: number;
 
+  /**
+   * When true (default), the exported image is rendered at the native
+   * (intrinsic) resolution of the loaded image — so the on-screen
+   * scaling that the editor applies to fit the canvas does NOT reduce
+   * the resolution of the output. Annotations are upscaled to match.
+   *
+   * Set to false to revert to the legacy behaviour where the export
+   * size matches the on-screen canvas size.
+   * Default: true
+   */
+  exportAtNativeResolution?: boolean;
+
   /** Maximum undo stack depth. Default: 20 */
   maxUndoSteps?: number;
 
@@ -31,6 +43,12 @@ export interface RpEditorConfig {
 
   /** Default text font size. Default: 24 */
   defaultTextFontSize?: number;
+
+  /** Default stroke color for shapes (circle/ellipse/square/arrow). Default: matches defaultBrushColor */
+  defaultShapeColor?: string;
+
+  /** Default stroke width for shapes. Default: 3 */
+  defaultShapeStrokeWidth?: number;
 
   /** Color palette for the color picker */
   colorPalette?: string[];
@@ -119,7 +137,20 @@ export interface RpEditorResult {
 /**
  * Editor tool modes
  */
-export type EditorMode = 'move' | 'crop' | 'draw' | 'text' | 'eraser' | 'callout';
+export type EditorMode =
+  | 'move'
+  | 'crop'
+  | 'draw'
+  | 'text'
+  | 'eraser'
+  | 'callout'
+  | 'shape-circle'
+  | 'shape-ellipse'
+  | 'shape-square'
+  | 'shape-arrow';
+
+/** Shape primitive supported by the ShapeModule */
+export type ShapeType = 'circle' | 'ellipse' | 'square' | 'arrow';
 
 /**
  * Event types emitted by the editor

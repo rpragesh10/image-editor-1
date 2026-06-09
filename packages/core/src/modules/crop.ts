@@ -109,9 +109,23 @@ export class CropModule {
   }
 
   /**
-   * Apply the crop — returns cropped image data URL
+   * Apply the crop — returns cropped image data URL plus the geometry
+   * needed by the caller to keep annotations aligned after the base
+   * image is replaced.
+   *
+   *   cropRectCanvas — bounding box of the crop rect in the OLD canvas
+   *                    coordinate system (post-scale).
+   *   oldDisplayScaleX/Y — the base image's display scale at crop time
+   *                        (canvas-pixels per image-pixel).
    */
-  applyCrop(): { dataUrl: string; width: number; height: number } | null {
+  applyCrop(): {
+    dataUrl: string;
+    width: number;
+    height: number;
+    cropRectCanvas: { left: number; top: number; width: number; height: number };
+    oldDisplayScaleX: number;
+    oldDisplayScaleY: number;
+  } | null {
     if (!this.cropRect || !this.imageObject) return null;
 
     const rect = this.cropRect;
@@ -121,6 +135,16 @@ export class CropModule {
     const imgBounds = this.getImageBounds();
     const scaleX = (img as any).scaleX || 1;
     const scaleY = (img as any).scaleY || 1;
+
+    // Crop rect bbox in canvas coords (post-scale)
+    const rectCanvasW = (rect.width || 0) * (rect.scaleX || 1);
+    const rectCanvasH = (rect.height || 0) * (rect.scaleY || 1);
+    const cropRectCanvas = {
+      left: rect.left || 0,
+      top: rect.top || 0,
+      width: rectCanvasW,
+      height: rectCanvasH,
+    };
 
     // Calculate crop coordinates in original image space
     const cropX = ((rect.left! - imgBounds.left) / scaleX);
@@ -152,7 +176,14 @@ export class CropModule {
     tempCanvas.width = 1;
     tempCanvas.height = 1;
 
-    return { dataUrl, width: w, height: h };
+    return {
+      dataUrl,
+      width: w,
+      height: h,
+      cropRectCanvas,
+      oldDisplayScaleX: scaleX,
+      oldDisplayScaleY: scaleY,
+    };
   }
 
   /**

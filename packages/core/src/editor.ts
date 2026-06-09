@@ -20,6 +20,7 @@ import { DrawModule } from './modules/draw.js';
 import { TextModule } from './modules/text.js';
 import { EraserModule } from './modules/eraser.js';
 import { CalloutModule } from './modules/callout.js';
+import { ShapeModule } from './modules/shape.js';
 import { HistoryModule } from './modules/history.js';
 import { Toolbar, ToolbarCallbacks } from './ui/toolbar.js';
 
@@ -39,6 +40,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private textModule: TextModule | null = null;
   private eraserModule: EraserModule | null = null;
   private calloutModule: CalloutModule | null = null;
+  private shapeModule: ShapeModule | null = null;
   private historyModule: HistoryModule | null = null;
   private toolbar: Toolbar | null = null;
 
@@ -136,6 +138,18 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         break;
       case 'callout':
         this.calloutModule?.activate();
+        break;
+      case 'shape-circle':
+        this.shapeModule?.activate('circle');
+        break;
+      case 'shape-ellipse':
+        this.shapeModule?.activate('ellipse');
+        break;
+      case 'shape-square':
+        this.shapeModule?.activate('square');
+        break;
+      case 'shape-arrow':
+        this.shapeModule?.activate('arrow');
         break;
     }
 
@@ -243,6 +257,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.drawModule?.setBrushColor(color);
     this.textModule?.setTextColor(color);
     this.calloutModule?.setColor(color);
+    this.shapeModule?.setStrokeColor(color);
   }
 
   /**
@@ -250,6 +265,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    */
   setBrushWidth(width: number): void {
     this.drawModule?.setBrushWidth(width);
+    this.shapeModule?.setStrokeWidth(width);
   }
 
   /**
@@ -271,7 +287,21 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const format = this.config.exportFormat;
     const quality = this.config.exportQuality;
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-    const multiplier = this.config.exportPixelRatio;
+    const userMultiplier = this.config.exportPixelRatio;
+
+    // Native-resolution multiplier: the editor scales the image down to
+    // fit the wrapper for display purposes, but for export we want to
+    // render back up at the image's intrinsic resolution so annotations
+    // and crops stay sharp. nativeMultiplier = 1 / displayScale.
+    let nativeMultiplier = 1;
+    if (this.config.exportAtNativeResolution && this.baseImage) {
+      const scaleX = (this.baseImage as any).scaleX || 1;
+      // scaleX/scaleY are uniform (set together in loadImageOntoCanvas)
+      if (scaleX > 0) {
+        nativeMultiplier = 1 / scaleX;
+      }
+    }
+    const multiplier = userMultiplier * nativeMultiplier;
 
     // Save current viewport state so we can restore after export
     const currentVPT = this.fabricCanvas.viewportTransform?.slice();
@@ -413,6 +443,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.textModule = null;
     this.eraserModule = null;
     this.calloutModule = null;
+    this.shapeModule = null;
     this.historyModule = null;
     this.toolbar = null;
   }
@@ -548,6 +579,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.textModule = new TextModule(this.fabricCanvas);
     this.eraserModule = new EraserModule(this.fabricCanvas);
     this.calloutModule = new CalloutModule(this.fabricCanvas);
+    this.shapeModule = new ShapeModule(this.fabricCanvas);
     this.historyModule = new HistoryModule(this.fabricCanvas, this.config.maxUndoSteps);
 
     // Set defaults from config
@@ -557,6 +589,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.textModule?.setTextColor(this.config.defaultTextColor);
     this.textModule?.setFontSize(this.config.defaultTextFontSize);
     this.calloutModule?.setColor(this.config.defaultBrushColor);
+    this.shapeModule?.setStrokeColor(
+      this.config.defaultShapeColor ?? this.config.defaultBrushColor,
+    );
+    this.shapeModule?.setStrokeWidth(
+      this.config.defaultShapeStrokeWidth ?? this.config.defaultBrushWidth,
+    );
 
     // Listen for drawing completion to save undo state
     this.fabricCanvas.on('path:created', () => {
@@ -649,6 +687,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.textModule?.deactivate();
     this.eraserModule?.deactivate();
     this.calloutModule?.deactivate();
+    this.shapeModule?.deactivate();
 
     if (this.fabricCanvas) {
       this.fabricCanvas.isDrawingMode = false;
@@ -671,16 +710,91 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
   private async applyCrop(): Promise<void> {
     const result = this.cropModule?.applyCrop();
-    if (result && this.fabricCanvas) {
-      // Reload the cropped image — canvas will be resized to new image dims
-      this.fabricCanvas.clear();
-      this.fabricCanvas.backgroundColor = 'transparent';
-      await this.loadImageOntoCanvas(result.dataUrl);
-      this.zoomLevel = 1;
-      this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-      this.historyModule?.saveState();
-      this.setMode('move');
+    if (!result || !this.fabricCanvas) return;
+
+    // Snapshot of all annotation objects with their pre-crop coordinates,
+    // so we can transform them to match the new cropped/re-scaled base
+    // image. We DO NOT call canvas.clear() — that would wipe annotations.
+    const oldAnnotations = this.fabricCanvas.getObjects().filter(
+      (o: any) => o._rpAnnotation,
+    );
+
+    // Capture the old scale (canvas-px per image-px). All annotations
+    // currently live in old canvas-space.
+    const oldScale = result.oldDisplayScaleX || 1;
+    const cropLeft = result.cropRectCanvas.left;
+    const cropTop = result.cropRectCanvas.top;
+
+    // Reload base image — loadImageOntoCanvas() removes the prior base
+    // image and resizes the fabric canvas to fit the new image.
+    this.fabricCanvas.backgroundColor = 'transparent';
+    await this.loadImageOntoCanvas(result.dataUrl);
+
+    // Compute new display scale from the freshly loaded base image,
+    // then derive the single factor that translates + rescales every
+    // annotation from old-canvas-space → new-canvas-space.
+    const newScale = (this.baseImage as any)?.scaleX || 1;
+    const factor = newScale / oldScale;
+
+    for (const obj of oldAnnotations) {
+      this.transformAnnotationForCrop(obj as fabric.Object, cropLeft, cropTop, factor);
     }
+
+    // Callouts render their tail onto an off-screen canvas sized to the
+    // main canvas, so after a crop (canvas resize) we need to repaint
+    // every tail in the new coordinate system.
+    this.calloutModule?.refreshAllTails();
+
+    this.zoomLevel = 1;
+    this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    this.fabricCanvas.requestRenderAll();
+    this.historyModule?.saveState();
+    this.setMode('move');
+  }
+
+  /**
+   * Translate + rescale a single annotation from old canvas coordinates
+   * (pre-crop) into new canvas coordinates (post-crop / re-fit).
+   *
+   *   new_pos = (old_pos - crop_origin) * factor
+   *   new_scale = old_scale * factor
+   *
+   * Arrow objects store their endpoints in canvas coordinates so they
+   * need a dedicated path that updates x1/y1/x2/y2 and rebuilds the bbox.
+   */
+  private transformAnnotationForCrop(
+    obj: fabric.Object,
+    cropLeft: number,
+    cropTop: number,
+    factor: number,
+  ): void {
+    const anyObj = obj as any;
+
+    // Special-case the custom arrow object
+    if (obj.type === 'rpArrow') {
+      anyObj.x1 = (anyObj.x1 - cropLeft) * factor;
+      anyObj.y1 = (anyObj.y1 - cropTop) * factor;
+      anyObj.x2 = (anyObj.x2 - cropLeft) * factor;
+      anyObj.y2 = (anyObj.y2 - cropTop) * factor;
+      anyObj.strokeWidth = (anyObj.strokeWidth || 1) * factor;
+      anyObj.arrowheadSize = (anyObj.arrowheadSize || 14) * factor;
+      anyObj._updateBBox?.();
+      anyObj._lastLeft = anyObj.left;
+      anyObj._lastTop = anyObj.top;
+      anyObj.setCoords();
+      return;
+    }
+
+    // Generic Fabric objects (Circle, Ellipse, Rect, Path, IText, etc.)
+    const newLeft = ((obj.left || 0) - cropLeft) * factor;
+    const newTop = ((obj.top || 0) - cropTop) * factor;
+    obj.set({
+      left: newLeft,
+      top: newTop,
+      scaleX: (obj.scaleX || 1) * factor,
+      scaleY: (obj.scaleY || 1) * factor,
+    });
+    obj.setCoords();
   }
 
   private async rotate(degrees: number): Promise<void> {
@@ -782,7 +896,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
       const pointer = canvas.getPointer(opt.e, true);
       canvas.zoomToPoint(new fabric.Point(pointer.x, pointer.y), newZoom);
-      this.zoomLevel = newZoom;      this.toolbar?.updateZoomState(newZoom);      this.emit('zoom:changed', newZoom);
+      this.zoomLevel = newZoom; this.toolbar?.updateZoomState(newZoom); this.emit('zoom:changed', newZoom);
 
       opt.e.preventDefault();
       opt.e.stopPropagation();

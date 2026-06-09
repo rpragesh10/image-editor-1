@@ -17,6 +17,7 @@ export type {
   RpEditorResult,
   CropAspectRatio,
   EditorMode,
+  ShapeType,
   RpEditorEvents,
   LoadedImageInfo,
 } from './types/index.js';

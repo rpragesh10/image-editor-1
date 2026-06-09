@@ -6,16 +6,18 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 
 ## Features
 
-- **Free crop** and aspect-ratio locked crop
+- **Free crop** and aspect-ratio locked crop — annotations are preserved across crops
 - **Zoom in/out** with pinch-to-zoom gesture support
 - **Drag/pan** image inside the viewport
 - **Rotate** left/right in 45° steps (lossless cumulative rotation from original)
 - **Freehand draw** with configurable brush color & width
 - **Add text** with inline editing, color, and font size
+- **Predefined shapes** — Circle (proportion-locked), Ellipse (independent w/h), Square (proportion-locked), and Arrow (with editable start/end endpoints). All shapes are draggable, resizable, undo/redo-able, and erasable.
 - **Callout annotations** — editable label box with draggable tail pointer, min-resize clamping, text constraints (max 40 chars, auto word-wrap), mobile double-tap editing, and delete button
 - **Eraser** tool for removing annotations
 - **Undo/Redo** with configurable stack depth
 - **Reset** to original image
+- **Native-resolution export** — output preserves the source image's intrinsic resolution; annotations stay sharp (toggle via `exportAtNativeResolution`)
 - **HEIC support** — auto-converts iPhone HEIC to JPEG
 - **EXIF orientation** — auto-corrects rotated photos
 - **Smart resolution** — auto-downscales on iOS to stay within Safari canvas limits

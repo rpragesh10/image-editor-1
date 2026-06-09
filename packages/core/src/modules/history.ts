@@ -22,7 +22,19 @@ export class HistoryModule {
   saveState(): void {
     if (this.isRestoring) return;
 
-    const json = JSON.stringify(this.canvas.toJSON(['_rpAnnotation', '_rpType', '_rpBaseImage', 'calloutId', 'calloutRole']));
+    const json = JSON.stringify(this.canvas.toJSON([
+      '_rpAnnotation',
+      '_rpType',
+      '_rpBaseImage',
+      '_rpShapeType',
+      'calloutId',
+      'calloutRole',
+      'x1',
+      'y1',
+      'x2',
+      'y2',
+      'arrowheadSize',
+    ]));
 
     // Don't save duplicate states
     if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === json) {

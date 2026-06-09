@@ -159,6 +159,18 @@ export class CalloutModule {
   }
 
   /**
+   * Refresh every callout's tail bitmap — needed after operations
+   * (like crop) that change the underlying canvas dimensions, since the
+   * tail is rendered onto an off-screen canvas sized to the main canvas.
+   */
+  refreshAllTails(): void {
+    for (const h of this.callouts) {
+      this.redrawTail(h);
+    }
+    this.canvas.requestRenderAll();
+  }
+
+  /**
    * Show borders and anchors only for currently-selected callouts.
    * Call after export to restore interactive state.
    */

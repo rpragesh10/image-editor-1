@@ -54,6 +54,7 @@ const GROUP_EXPANSION: Record<string, string[]> = {
   zoom: ['zoomIn', 'zoomOut'],
   transform: ['rotateLeft', 'rotateRight'],
   annotate: ['draw', 'text', 'callout', 'eraser'],
+  shapes: ['shape-circle', 'shape-ellipse', 'shape-square', 'shape-arrow'],
 };
 
 function expandDisabled(raw: string[]): Set<string> {
@@ -221,6 +222,15 @@ export class Toolbar {
           { id: 'text', icon: 'text', title: 'Add Text', mode: 'text' },
           { id: 'callout', icon: 'callout', title: 'Callout', mode: 'callout' },
           { id: 'eraser', icon: 'eraser', title: 'Eraser', mode: 'eraser' },
+        ],
+      },
+      {
+        type: 'group', id: 'shapes', icon: 'shapes', title: 'Shapes',
+        children: [
+          { id: 'shape-circle', icon: 'circle', title: 'Circle', mode: 'shape-circle' },
+          { id: 'shape-ellipse', icon: 'ellipse', title: 'Ellipse', mode: 'shape-ellipse' },
+          { id: 'shape-square', icon: 'square', title: 'Square', mode: 'shape-square' },
+          { id: 'shape-arrow', icon: 'arrow', title: 'Arrow', mode: 'shape-arrow' },
         ],
       },
       { type: 'button', id: 'undo', icon: 'undo', title: 'Undo', action: 'undo' },
@@ -447,9 +457,15 @@ export class Toolbar {
     this.subPanelEl.innerHTML = '';
     this.subPanelEl.style.display = 'none';
 
-    if (this.activeMode === 'draw' || this.activeMode === 'text' || this.activeMode === 'callout') {
+    const isShapeMode =
+      this.activeMode === 'shape-circle' ||
+      this.activeMode === 'shape-ellipse' ||
+      this.activeMode === 'shape-square' ||
+      this.activeMode === 'shape-arrow';
+
+    if (this.activeMode === 'draw' || this.activeMode === 'text' || this.activeMode === 'callout' || isShapeMode) {
       this.showColorPicker();
-      if (this.activeMode === 'callout') {
+      if (this.activeMode === 'callout' || isShapeMode) {
         this.showDeleteButton();
       }
     } else if (this.activeMode === 'crop') {
@@ -490,8 +506,14 @@ export class Toolbar {
       this.subPanelEl!.appendChild(swatch);
     });
 
-    // Brush width slider (only for draw mode)
-    if (this.activeMode === 'draw') {
+    // Brush width slider (also shown for shape modes so the user can
+    // adjust shape stroke thickness)
+    const isShapeMode =
+      this.activeMode === 'shape-circle' ||
+      this.activeMode === 'shape-ellipse' ||
+      this.activeMode === 'shape-square' ||
+      this.activeMode === 'shape-arrow';
+    if (this.activeMode === 'draw' || isShapeMode) {
       const separator = document.createElement('div');
       separator.style.cssText = 'width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 8px;';
       this.subPanelEl.appendChild(separator);
