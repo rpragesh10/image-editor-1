@@ -1,9 +1,10 @@
 /**
  * Shape Module — interactive drawing of predefined shapes:
- *   • Circle  — perfect circle (uniform scaling enforced)
- *   • Ellipse — independent width / height
- *   • Square  — perfect square (uniform scaling enforced)
- *   • Arrow   — line with arrowhead, endpoints individually editable
+ *   • Circle    — perfect circle (uniform scaling enforced)
+ *   • Ellipse   — independent width / height
+ *   • Square    — perfect square (uniform scaling enforced)
+ *   • Rectangle — independent width / height
+ *   • Arrow     — line with arrowhead, endpoints individually editable
  *
  * Behaviour:
  *   1. activate(type) puts the canvas into drag-to-draw mode for that
@@ -476,6 +477,14 @@ export class ShapeModule {
                 mt: false, mb: false, ml: false, mr: false, mtr: false,
             });
             obj = r;
+        } else if (type === 'rectangle') {
+            // Free-aspect rectangle — keeps all side handles so width and
+            // height can be resized independently.
+            obj = new fabric.Rect({
+                ...common,
+                width: 1,
+                height: 1,
+            });
         } else if (type === 'arrow') {
             const ArrowClass = registerArrowClass();
             const arrow = new ArrowClass({
@@ -568,6 +577,13 @@ export class ShapeModule {
                 top: dy >= 0 ? this.startY : this.startY - size,
                 width: size,
                 height: size,
+            });
+        } else if (type === 'rectangle') {
+            obj.set({
+                left: dx >= 0 ? this.startX : x,
+                top: dy >= 0 ? this.startY : y,
+                width: absDx,
+                height: absDy,
             });
         } else if (type === 'arrow') {
             obj.x2 = x;

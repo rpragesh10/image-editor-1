@@ -111,9 +111,12 @@ export function openEditorModal(options: ModalOptions): Promise<RpEditorResult |
       -webkit-tap-highlight-color: transparent;
     `;
 
-    // Apply button
+    // Apply button — starts disabled until the image finishes loading
     const applyBtn = document.createElement('button');
-    applyBtn.textContent = theme.applyButtonText || 'Apply';
+    const applyBtnLabel = theme.applyButtonText || 'Apply';
+    applyBtn.textContent = applyBtnLabel;
+    applyBtn.disabled = true;
+    applyBtn.setAttribute('aria-busy', 'true');
     applyBtn.style.cssText = `
       padding: 10px 28px;
       border: 1px solid ${theme.applyButtonBorderColor || '#4a90d9'};
@@ -122,11 +125,23 @@ export function openEditorModal(options: ModalOptions): Promise<RpEditorResult |
       border-radius: ${theme.buttonBorderRadius || '6px'};
       font-size: 15px;
       font-weight: 600;
-      cursor: pointer;
+      cursor: not-allowed;
+      opacity: 0.55;
+      pointer-events: none;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       transition: opacity 0.2s;
       -webkit-tap-highlight-color: transparent;
     `;
+
+    let imageLoaded = false;
+    const enableApplyButton = () => {
+      imageLoaded = true;
+      applyBtn.disabled = false;
+      applyBtn.removeAttribute('aria-busy');
+      applyBtn.style.cursor = 'pointer';
+      applyBtn.style.opacity = '1';
+      applyBtn.style.pointerEvents = 'auto';
+    };
 
     footer.appendChild(cancelBtn);
     footer.appendChild(applyBtn);
@@ -163,7 +178,13 @@ export function openEditorModal(options: ModalOptions): Promise<RpEditorResult |
 
     // Apply handler
     applyBtn.addEventListener('click', async () => {
+      // Guard: ignore clicks before the image has finished loading.
+      // The button is already visually disabled, but this protects against
+      // edge cases where a synthetic/programmatic click bypasses pointer-events.
+      if (!imageLoaded || applyBtn.disabled) return;
+
       try {
+        applyBtn.disabled = true;
         applyBtn.textContent = 'Processing...';
         applyBtn.style.opacity = '0.7';
         applyBtn.style.pointerEvents = 'none';
@@ -173,7 +194,8 @@ export function openEditorModal(options: ModalOptions): Promise<RpEditorResult |
         options.onApply?.(result);
         resolve(result);
       } catch (err) {
-        applyBtn.textContent = theme.applyButtonText || 'Apply';
+        applyBtn.disabled = false;
+        applyBtn.textContent = applyBtnLabel;
         applyBtn.style.opacity = '1';
         applyBtn.style.pointerEvents = 'auto';
         console.error('[RpImageEditor] Export failed:', err);
@@ -191,11 +213,17 @@ export function openEditorModal(options: ModalOptions): Promise<RpEditorResult |
     };
     document.addEventListener('keydown', escHandler);
 
-    // Load the image
-    editor.loadImage(options.image).catch((err) => {
-      console.error('[RpImageEditor] Failed to load image:', err);
-      cleanup();
-      resolve(null);
-    });
+    // Load the image — Apply stays disabled until this resolves
+    editor
+      .loadImage(options.image)
+      .then(() => {
+        if (isClosing) return;
+        enableApplyButton();
+      })
+      .catch((err) => {
+        console.error('[RpImageEditor] Failed to load image:', err);
+        cleanup();
+        resolve(null);
+      });
   });
 }

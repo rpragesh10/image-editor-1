@@ -148,6 +148,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       case 'shape-square':
         this.shapeModule?.activate('square');
         break;
+      case 'shape-rectangle':
+        this.shapeModule?.activate('rectangle');
+        break;
       case 'shape-arrow':
         this.shapeModule?.activate('arrow');
         break;

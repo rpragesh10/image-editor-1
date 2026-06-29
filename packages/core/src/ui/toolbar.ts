@@ -54,7 +54,7 @@ const GROUP_EXPANSION: Record<string, string[]> = {
   zoom: ['zoomIn', 'zoomOut'],
   transform: ['rotateLeft', 'rotateRight'],
   annotate: ['draw', 'text', 'callout', 'eraser'],
-  shapes: ['shape-circle', 'shape-ellipse', 'shape-square', 'shape-arrow'],
+  shapes: ['shape-circle', 'shape-ellipse', 'shape-square', 'shape-rectangle', 'shape-arrow'],
 };
 
 function expandDisabled(raw: string[]): Set<string> {
@@ -230,6 +230,7 @@ export class Toolbar {
           { id: 'shape-circle', icon: 'circle', title: 'Circle', mode: 'shape-circle' },
           { id: 'shape-ellipse', icon: 'ellipse', title: 'Ellipse', mode: 'shape-ellipse' },
           { id: 'shape-square', icon: 'square', title: 'Square', mode: 'shape-square' },
+          { id: 'shape-rectangle', icon: 'rectangle', title: 'Rectangle', mode: 'shape-rectangle' },
           { id: 'shape-arrow', icon: 'arrow', title: 'Arrow', mode: 'shape-arrow' },
         ],
       },
@@ -461,6 +462,7 @@ export class Toolbar {
       this.activeMode === 'shape-circle' ||
       this.activeMode === 'shape-ellipse' ||
       this.activeMode === 'shape-square' ||
+      this.activeMode === 'shape-rectangle' ||
       this.activeMode === 'shape-arrow';
 
     if (this.activeMode === 'draw' || this.activeMode === 'text' || this.activeMode === 'callout' || isShapeMode) {
@@ -512,6 +514,7 @@ export class Toolbar {
       this.activeMode === 'shape-circle' ||
       this.activeMode === 'shape-ellipse' ||
       this.activeMode === 'shape-square' ||
+      this.activeMode === 'shape-rectangle' ||
       this.activeMode === 'shape-arrow';
     if (this.activeMode === 'draw' || isShapeMode) {
       const separator = document.createElement('div');
