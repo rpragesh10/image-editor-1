@@ -44,7 +44,7 @@ export interface RpEditorConfig {
   /** Default text font size. Default: 24 */
   defaultTextFontSize?: number;
 
-  /** Default stroke color for shapes (circle/ellipse/square/arrow). Default: matches defaultBrushColor */
+  /** Default stroke color for shapes (circle/ellipse/square/rectangle/arrow). Default: matches defaultBrushColor */
   defaultShapeColor?: string;
 
   /** Default stroke width for shapes. Default: 3 */
@@ -147,10 +147,11 @@ export type EditorMode =
   | 'shape-circle'
   | 'shape-ellipse'
   | 'shape-square'
+  | 'shape-rectangle'
   | 'shape-arrow';
 
 /** Shape primitive supported by the ShapeModule */
-export type ShapeType = 'circle' | 'ellipse' | 'square' | 'arrow';
+export type ShapeType = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'arrow';
 
 /**
  * Event types emitted by the editor
